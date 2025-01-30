@@ -4,7 +4,7 @@ permissions:
   contents: read
 jobs:
   run-tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     container:
       image: xd009642/tarpaulin:0.30.0
       options: --security-opt seccomp=unconfined
@@ -16,11 +16,11 @@ jobs:
         run: |
           cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
+        uses: codecov/codecov-action@v5.3.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Archive code coverage results
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage-report
           path: cobertura.xml
