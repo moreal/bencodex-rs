@@ -39,3 +39,8 @@ serde_json = { version = "1.0", optional = true }
 yaml-rust = "0.4.5"
 syn = "2.0.68"
 quote = "1.0.36"
+criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
+
+[[bench]]
+name = "encode"
+harness = false
