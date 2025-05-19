@@ -1,5 +1,18 @@
 use num_bigint::BigInt;
+
+#[cfg(feature = "std")]
 use std::{collections::BTreeMap, fmt::Debug};
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
+#[cfg(not(feature = "std"))]
+use core::fmt::Debug;
 
 /// The type alias of `BTreepMap<BencodexKey, BencodexValue>` to reduce code size.
 ///
@@ -173,8 +186,17 @@ where
 #[cfg(test)]
 mod tests {
     mod into {
+        #[cfg(feature = "std")]
         use std::array::IntoIter;
+        #[cfg(feature = "std")]
         use std::{collections::BTreeMap, iter::FromIterator};
+
+        #[cfg(not(feature = "std"))]
+        use alloc::collections::BTreeMap;
+        #[cfg(not(feature = "std"))]
+        use core::array::IntoIter;
+        #[cfg(not(feature = "std"))]
+        use core::iter::FromIterator;
 
         use super::super::{BencodexKey, BencodexValue};
 

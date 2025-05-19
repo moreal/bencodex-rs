@@ -20,16 +20,18 @@ path = "src/main.rs"
 required-features = ["json-cli"]
 
 [features]
-json = ["serde_json", "hex", "base64"]
+std = ["num-bigint/std", "num-traits/std", "itertools/use_std"]
+json = ["serde_json", "hex", "base64", "std"]
 json-cli = ["json", "clap"]
 test = ["base64"]
+default = ["std"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-itertools = "0.13.0"
-num-traits = "0.2.19"
-num-bigint = "0.4.6"
+itertools = { version = "0.13.0", default-features = false, features = ["use_alloc"] }
+num-traits = { version = "0.2.19", default-features = false }
+num-bigint = { version = "0.4.6", default-features = false, features = ["alloc"] }
 hex = { version = "0.4.3", optional = true }
 base64 = { version = "0.22.1", optional = true }
 clap = { version = "4.5.8", features = ["derive"], optional = true }
