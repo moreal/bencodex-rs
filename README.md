@@ -6,10 +6,21 @@ The [Rust] implementation of [Bencodex].
 
 - **Correctness** - Implement Bencodex spec and passed tests with its testsuites.
 - **[Bencodex JSON]** - Support encoding Bencodex to JSON and decoding JSON to Bencodex.
-- **Feature flags** - Support `json`, `json-cli` feature flags to minimize binary size in use.
+- **Feature flags** - Support `json`, `json-cli`, `std` feature flags to minimize binary size in use.
+- **no_std support** - Support `no_std` environments by disabling the default `std` feature.
 
 [Rust]: https://rust-lang.org/
 [Bencodex]: https://bencodex.org/
+
+## no_std support
+
+bencodex-rs supports `no_std` environments. By default, the `std` feature is enabled, which provides full functionality with the standard library. To use in a `no_std` environment, disable the default features:
+
+```toml
+bencodex-rs = { version = "<VERSION>", default-features = false }
+```
+
+When using in a `no_std` environment that has access to an allocator, the core functionality will still work, and encoding/decoding operations will function with Vec<u8> as the output/input buffer.
 
 ## Bencodex JSON feature
 

@@ -1,12 +1,38 @@
 use super::types::*;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
+
+#[cfg(feature = "std")]
 use std::collections::BTreeMap;
+#[cfg(feature = "std")]
 use std::error::Error;
+#[cfg(feature = "std")]
 use std::fmt;
+#[cfg(feature = "std")]
 use std::result::Result;
+#[cfg(feature = "std")]
 use std::str;
+#[cfg(feature = "std")]
 use std::str::FromStr;
+
+#[cfg(not(feature = "std"))]
+use alloc::collections::BTreeMap;
+#[cfg(not(feature = "std"))]
+use alloc::string::{String, ToString};
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use core::fmt;
+#[cfg(not(feature = "std"))]
+use core::result::Result;
+#[cfg(not(feature = "std"))]
+use core::str;
+#[cfg(not(feature = "std"))]
+use core::str::FromStr;
+#[cfg(not(feature = "std"))]
+use core::result::Result;
+#[cfg(not(feature = "std"))]
+use core::str;
 
 /// The error type which is returned from decoding a Bencodex value through [`Decode::decode`].
 #[derive(Debug, PartialEq)]
@@ -40,6 +66,7 @@ impl fmt::Display for DecodeError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for DecodeError {}
 
 /// `Decode` is a trait to decode a [Bencodex] value.
