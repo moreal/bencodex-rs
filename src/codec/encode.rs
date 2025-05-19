@@ -1,11 +1,28 @@
 use super::types::*;
 use itertools::Itertools;
 use num_bigint::BigInt;
+
+#[cfg(feature = "std")]
 use std::cmp::Ordering;
+#[cfg(feature = "std")]
 use std::collections::BTreeMap;
+#[cfg(feature = "std")]
 use std::io;
+#[cfg(feature = "std")]
 use std::result::Result;
 
+#[cfg(not(feature = "std"))]
+use alloc::collections::BTreeMap;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use core::cmp::Ordering;
+#[cfg(not(feature = "std"))]
+use core::result::Result;
+
+#[cfg(feature = "std")]
 /// `Encode` is a trait to encode a [Bencodex] value.
 ///
 /// [Bencodex]: https://bencodex.org/
@@ -29,6 +46,106 @@ pub trait Encode {
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error>;
 }
 
+#[cfg(not(feature = "std"))]
+pub trait Write {
+    /// Write a buffer into this writer, returning how many bytes were written.
+    fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError>;
+    
+    /// Write an entire buffer into this writer.
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError>;
+    
+    /// Write a formatted string into this writer.
+    fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> Result<(), WriteError>;
+}
+
+#[cfg(not(feature = "std"))]
+/// Error type for write operations
+#[derive(Debug)]
+pub struct WriteError;
+
+#[cfg(not(feature = "std"))]
+impl core::fmt::Display for WriteError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "WriteError")
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl Write for Vec<u8> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError> {
+        self.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError> {
+        self.extend_from_slice(buf);
+        Ok(())
+    }
+    
+    fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> Result<(), WriteError> {
+        // Implementation inspired by the std library
+        struct Adapter<'a, 'b> {
+            inner: &'a mut Vec<u8>,
+            error: &'b mut Result<(), WriteError>,
+        }
+        
+        impl<'a, 'b> core::fmt::Write for Adapter<'a, 'b> {
+            fn write_str(&mut self, s: &str) -> core::fmt::Result {
+                match self.inner.write_all(s.as_bytes()) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        *self.error = Err(e);
+                        Err(core::fmt::Error)
+                    }
+                }
+            }
+        }
+        
+        let mut error = Ok(());
+        let result = {
+            let mut adapter = Adapter {
+                inner: self,
+                error: &mut error,
+            };
+            core::fmt::write(&mut adapter, fmt)
+        };
+        
+        if result.is_err() {
+            if error.is_ok() {
+                return Err(WriteError);
+            }
+            return error;
+        }
+        
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+/// `Encode` is a trait to encode a [Bencodex] value.
+///
+/// [Bencodex]: https://bencodex.org/
+pub trait Encode {
+    /// Encode a [Bencodex] value from this type.
+    ///
+    /// If encoding succeeds, return [`Ok`]. Otherwise, it will pass [`WriteError`] occurred in inner logic.
+    ///
+    /// # Examples
+    /// Basic usage with [`BencodexValue::Text`]:
+    /// ```
+    /// use bencodex::{ Encode, BencodexValue };
+    ///
+    /// let text = "text".to_string();
+    /// let mut vec = Vec::new();
+    /// text.encode(&mut vec);
+    ///
+    /// assert_eq!(vec, vec![b'u', b'4', b':', b't', b'e', b'x', b't']);
+    /// ```
+    /// [Bencodex]: https://bencodex.org/
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError>;
+}
+
+#[cfg(feature = "std")]
 impl Encode for Vec<u8> {
     /// ```
     /// use bencodex::{ Encode };
@@ -45,6 +162,24 @@ impl Encode for Vec<u8> {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for Vec<u8> {
+    /// ```
+    /// use bencodex::{ Encode };
+    ///
+    /// let mut buf = vec![];
+    /// b"hello".to_vec().encode(&mut buf);
+    /// assert_eq!(buf, b"5:hello");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        write!(writer, "{}:", self.len())?;
+        writer.write_all(&self)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl Encode for i64 {
     /// ```
     /// use bencodex::{ Encode };
@@ -58,6 +193,22 @@ impl Encode for i64 {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for i64 {
+    /// ```
+    /// use bencodex::{ Encode };
+    ///
+    /// let mut buf = vec![];
+    /// 1004i64.encode(&mut buf);
+    /// assert_eq!(buf, b"i1004e");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        write!(writer, "i{}e", self)
+    }
+}
+}
+
+#[cfg(feature = "std")]
 impl Encode for String {
     /// ```
     /// use bencodex::{ Encode };
@@ -75,6 +226,25 @@ impl Encode for String {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for String {
+    /// ```
+    /// use bencodex::{ Encode };
+    ///
+    /// let mut buf = vec![];
+    /// "foo".to_string().encode(&mut buf);
+    /// assert_eq!(buf, b"u3:foo");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        let bytes = self.into_bytes();
+        write!(writer, "u{}:", bytes.len())?;
+        writer.write_all(&bytes)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl Encode for bool {
     /// ```
     /// use bencodex::{ Encode };
@@ -93,6 +263,26 @@ impl Encode for bool {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for bool {
+    /// ```
+    /// use bencodex::{ Encode };
+    ///
+    /// let mut buf = vec![];
+    /// true.encode(&mut buf);
+    /// assert_eq!(buf, b"t");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        writer.write_all(match self {
+            true => &[b't'],
+            false => &[b'f'],
+        })?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl Encode for BigInt {
     /// ```
     /// use bencodex::{ Encode };
@@ -111,6 +301,26 @@ impl Encode for BigInt {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for BigInt {
+    /// ```
+    /// use bencodex::{ Encode };
+    /// use num_bigint::BigInt;
+    ///
+    /// let mut buf = vec![];
+    /// BigInt::from(0).encode(&mut buf);
+    /// assert_eq!(buf, b"i0e");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        writer.write_all(&[b'i'])?;
+        writer.write_all(&self.to_str_radix(10).into_bytes())?;
+        writer.write_all(&[b'e'])?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl Encode for Vec<BencodexValue> {
     /// ```
     /// use bencodex::{ Encode, BencodexValue };
@@ -132,14 +342,63 @@ impl Encode for Vec<BencodexValue> {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Encode for Vec<BencodexValue> {
+    /// ```
+    /// use bencodex::{ Encode, BencodexValue };
+    /// use num_bigint::BigInt;
+    ///
+    /// let list: Vec<BencodexValue> = vec![0.into(), BencodexValue::Null];
+    /// let mut buf = vec![];
+    /// list.encode(&mut buf);
+    /// assert_eq!(buf, b"li0ene");
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
+        writer.write_all(&[b'l'])?;
+        for el in self {
+            el.encode(writer)?;
+        }
+        writer.write_all(&[b'e'])?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 fn encode_null(writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
     writer.write_all(&[b'n'])?;
 
     Ok(())
 }
 
+#[cfg(not(feature = "std"))]
+fn encode_null(writer: &mut dyn Write) -> Result<(), WriteError> {
+    writer.write_all(&[b'n'])?;
+
+    Ok(())
+}
+
+#[cfg(feature = "std")]
 impl Encode for BencodexValue {
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+        // FIXME: rewrite more beautiful.
+        match self {
+            BencodexValue::Binary(x) => x.encode(writer)?,
+            BencodexValue::Text(x) => x.encode(writer)?,
+            BencodexValue::Dictionary(x) => x.encode(writer)?,
+            BencodexValue::List(x) => x.encode(writer)?,
+            BencodexValue::Boolean(x) => x.encode(writer)?,
+            BencodexValue::Null => encode_null(writer)?,
+            BencodexValue::Number(x) => x.encode(writer)?,
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl Encode for BencodexValue {
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
         // FIXME: rewrite more beautiful.
         match self {
             BencodexValue::Binary(x) => x.encode(writer)?,
@@ -176,6 +435,7 @@ fn compare_key(x: &BencodexKey, y: &BencodexKey) -> Ordering {
     }
 }
 
+#[cfg(feature = "std")]
 impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     /// ```
     /// use bencodex::{ Encode, BencodexKey, BencodexValue };
@@ -190,6 +450,41 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     /// assert_eq!(buf, b"du0:u0:e")
     /// ```
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+        let pairs = self
+            .into_iter()
+            .sorted_by(|(x, _), (y, _)| compare_key(x, y));
+
+        writer.write_all(&[b'd'])?;
+        for (key, value) in pairs {
+            let key = match key {
+                BencodexKey::Binary(x) => BencodexValue::Binary(x),
+                BencodexKey::Text(x) => BencodexValue::Text(x),
+            };
+
+            key.encode(writer)?;
+            value.encode(writer)?;
+        }
+        writer.write_all(&[b'e'])?;
+
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl Encode for BTreeMap<BencodexKey, BencodexValue> {
+    /// ```
+    /// use bencodex::{ Encode, BencodexKey, BencodexValue };
+    /// use std::collections::BTreeMap;
+    ///
+    /// let mut dict: BTreeMap<BencodexKey, BencodexValue> = BTreeMap::new();
+    /// dict.insert("".into(), "".into());
+    ///
+    /// let mut buf = vec![];
+    /// dict.encode(&mut buf);
+    ///
+    /// assert_eq!(buf, b"du0:u0:e")
+    /// ```
+    fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
         let pairs = self
             .into_iter()
             .sorted_by(|(x, _), (y, _)| compare_key(x, y));
