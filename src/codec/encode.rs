@@ -71,7 +71,7 @@ impl core::fmt::Display for WriteError {
 }
 
 #[cfg(not(feature = "std"))]
-impl Write for Vec<u8> {
+impl Write for alloc::vec::Vec<u8> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError> {
         self.extend_from_slice(buf);
         Ok(buf.len())
