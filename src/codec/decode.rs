@@ -26,13 +26,13 @@ use core::fmt;
 #[cfg(not(feature = "std"))]
 use core::result::Result;
 #[cfg(not(feature = "std"))]
-use core::str;
-#[cfg(not(feature = "std"))]
-use core::str::FromStr;
-#[cfg(not(feature = "std"))]
 use core::result::Result;
 #[cfg(not(feature = "std"))]
 use core::str;
+#[cfg(not(feature = "std"))]
+use core::str;
+#[cfg(not(feature = "std"))]
+use core::str::FromStr;
 
 /// The error type which is returned from decoding a Bencodex value through [`Decode::decode`].
 #[derive(Debug, PartialEq)]

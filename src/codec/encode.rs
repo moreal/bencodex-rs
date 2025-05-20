@@ -50,10 +50,10 @@ pub trait Encode {
 pub trait Write {
     /// Write a buffer into this writer, returning how many bytes were written.
     fn write(&mut self, buf: &[u8]) -> Result<usize, WriteError>;
-    
+
     /// Write an entire buffer into this writer.
     fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError>;
-    
+
     /// Write a formatted string into this writer.
     fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> Result<(), WriteError>;
 }
@@ -76,19 +76,19 @@ impl Write for alloc::vec::Vec<u8> {
         self.extend_from_slice(buf);
         Ok(buf.len())
     }
-    
+
     fn write_all(&mut self, buf: &[u8]) -> Result<(), WriteError> {
         self.extend_from_slice(buf);
         Ok(())
     }
-    
+
     fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> Result<(), WriteError> {
         // Implementation inspired by the std library
         struct Adapter<'a, 'b> {
             inner: &'a mut Vec<u8>,
             error: &'b mut Result<(), WriteError>,
         }
-        
+
         impl<'a, 'b> core::fmt::Write for Adapter<'a, 'b> {
             fn write_str(&mut self, s: &str) -> core::fmt::Result {
                 match self.inner.write_all(s.as_bytes()) {
@@ -100,7 +100,7 @@ impl Write for alloc::vec::Vec<u8> {
                 }
             }
         }
-        
+
         let mut error = Ok(());
         let result = {
             let mut adapter = Adapter {
@@ -109,14 +109,14 @@ impl Write for alloc::vec::Vec<u8> {
             };
             core::fmt::write(&mut adapter, fmt)
         };
-        
+
         if result.is_err() {
             if error.is_ok() {
                 return Err(WriteError);
             }
             return error;
         }
-        
+
         Ok(())
     }
 }
@@ -205,7 +205,6 @@ impl Encode for i64 {
     fn encode(self, writer: &mut dyn Write) -> Result<(), WriteError> {
         write!(writer, "i{}e", self)
     }
-}
 }
 
 #[cfg(feature = "std")]

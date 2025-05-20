@@ -12,7 +12,7 @@ fn test_no_std_encode_decode() {
     let value = BencodexValue::Number(42.into());
     let mut buf = Vec::new();
     value.encode(&mut buf).unwrap();
-    
+
     // Test decoding
     let decoded = buf.decode().unwrap();
     assert_eq!(value, decoded);
