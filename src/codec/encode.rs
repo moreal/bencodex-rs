@@ -2,14 +2,13 @@ use super::types::*;
 use itertools::Itertools;
 use num_bigint::BigInt;
 
-#[cfg(feature = "std")]
-use std::cmp::Ordering;
+use core::cmp::Ordering;
+use core::result::Result;
+
 #[cfg(feature = "std")]
 use std::collections::BTreeMap;
 #[cfg(feature = "std")]
 use std::io;
-#[cfg(feature = "std")]
-use std::result::Result;
 
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeMap;
@@ -17,10 +16,6 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
-use core::cmp::Ordering;
-#[cfg(not(feature = "std"))]
-use core::result::Result;
 
 #[cfg(feature = "std")]
 /// `Encode` is a trait to encode a [Bencodex] value.

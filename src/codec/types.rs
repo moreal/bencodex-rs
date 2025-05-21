@@ -1,7 +1,8 @@
+use core::fmt::Debug;
 use num_bigint::BigInt;
 
 #[cfg(feature = "std")]
-use std::{collections::BTreeMap, fmt::Debug};
+use std::collections::BTreeMap;
 
 #[cfg(not(feature = "std"))]
 use alloc::{
@@ -10,9 +11,6 @@ use alloc::{
     vec,
     vec::Vec,
 };
-
-#[cfg(not(feature = "std"))]
-use core::fmt::Debug;
 
 /// The type alias of `BTreepMap<BencodexKey, BencodexValue>` to reduce code size.
 ///
