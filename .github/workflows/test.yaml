@@ -6,7 +6,7 @@ jobs:
   run-tests:
     runs-on: ubuntu-24.04
     container:
-      image: xd009642/tarpaulin:0.30.0
+      image: xd009642/tarpaulin:0.32.7
       options: --security-opt seccomp=unconfined
     steps:
       - uses: actions/checkout@v4
