@@ -3,9 +3,9 @@ use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 
 #[cfg(feature = "std")]
-use std::collections::BTreeMap;
+use core::error::Error;
 #[cfg(feature = "std")]
-use std::error::Error;
+use std::collections::BTreeMap;
 #[cfg(feature = "std")]
 use std::fmt;
 #[cfg(feature = "std")]
