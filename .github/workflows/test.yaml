@@ -9,7 +9,7 @@ jobs:
       image: xd009642/tarpaulin:0.32.7
       options: --security-opt seccomp=unconfined
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Generate code coverage
