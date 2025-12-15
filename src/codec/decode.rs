@@ -302,7 +302,7 @@ fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
         None
     } else {
         Some((
-            BigInt::from_str(&String::from_utf8(s[..size].to_vec()).unwrap()).unwrap(),
+            BigInt::from_str(core::str::from_utf8(&s[..size]).unwrap()).unwrap(),
             size,
         ))
     }
