@@ -10,6 +10,9 @@ on:
 jobs:
   codspeed-benchmarks:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -24,7 +27,7 @@ jobs:
         run: cargo codspeed build
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@v3
+        uses: CodSpeedHQ/action@v4.4.1
         with:
           run: cargo codspeed run
-          token: ${{ secrets.CODSPEED_TOKEN }}
+          mode: simulation
