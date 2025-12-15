@@ -85,8 +85,8 @@ impl Encode for bool {
     /// ```
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
         writer.write_all(match self {
-            true => &[b't'],
-            false => &[b'f'],
+            true => b"t",
+            false => b"f",
         })?;
 
         Ok(())
@@ -103,9 +103,9 @@ impl Encode for BigInt {
     /// assert_eq!(buf, b"i0e");
     /// ```
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
-        writer.write_all(&[b'i'])?;
+        writer.write_all(b"i")?;
         writer.write_all(&self.to_str_radix(10).into_bytes())?;
-        writer.write_all(&[b'e'])?;
+        writer.write_all(b"e")?;
 
         Ok(())
     }
@@ -122,18 +122,18 @@ impl Encode for Vec<BencodexValue> {
     /// assert_eq!(buf, b"li0ene");
     /// ```
     fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
-        writer.write_all(&[b'l'])?;
+        writer.write_all(b"l")?;
         for el in self {
             el.encode(writer)?;
         }
-        writer.write_all(&[b'e'])?;
+        writer.write_all(b"e")?;
 
         Ok(())
     }
 }
 
 fn encode_null(writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
-    writer.write_all(&[b'n'])?;
+    writer.write_all(b"n")?;
 
     Ok(())
 }
@@ -194,7 +194,7 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
             .into_iter()
             .sorted_by(|(x, _), (y, _)| compare_key(x, y));
 
-        writer.write_all(&[b'd'])?;
+        writer.write_all(b"d")?;
         for (key, value) in pairs {
             let key = match key {
                 BencodexKey::Binary(x) => BencodexValue::Binary(x),
@@ -204,7 +204,7 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
             key.encode(writer)?;
             value.encode(writer)?;
         }
-        writer.write_all(&[b'e'])?;
+        writer.write_all(b"e")?;
 
         Ok(())
     }
