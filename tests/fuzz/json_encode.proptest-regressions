@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc e0e91e8a4e2f74117d138038236cf1419dd5c4861d71f240a8bf7a990c1fd6bc # shrinks to value = List([Text("\"")])
+cc d4d513bb07f3236daab4f545e8356fa81949e36dd149372af9698acdedd8d3c1 # shrinks to value = Dictionary({Text("\\"): Null})
