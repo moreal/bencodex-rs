@@ -17,7 +17,8 @@ fn spec_test_base64() {
 
         println!("JSON: {:?}", spec.json);
         assert_eq!(
-            to_json_with_options(&spec.bvalue, SPEC_TEST_BASE64_OPTIONS),
+            to_json_with_options(&spec.bvalue, SPEC_TEST_BASE64_OPTIONS)
+                .expect("Failed to encode JSON."),
             spec.json
         );
 
@@ -33,7 +34,8 @@ fn spec_test_hex() {
 
         println!("JSON: {:?}", spec.json);
         assert_eq!(
-            to_json_with_options(&spec.bvalue, SPEC_TEST_HEX_OPTIONS),
+            to_json_with_options(&spec.bvalue, SPEC_TEST_HEX_OPTIONS)
+                .expect("Failed to encode JSON."),
             spec.json
         );
 

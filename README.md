@@ -30,7 +30,7 @@ To encode from Bencodex to JSON, you can use `to_json` function.
 ```rust
 use bencodex::{ BencodexValue, json::to_json };
 
-let json = to_json(&BencodexValue::Null);
+let json = to_json(&BencodexValue::Null).expect("Failed to encode JSON.");
 println!("{}", json);
 ```
 
@@ -42,7 +42,7 @@ use bencodex::json::{ BinaryEncoding, JsonEncodeOptions, to_json_with_options };
 
 let json = to_json_with_options(&BencodexValue::Null, JsonEncodeOptions {
   binary_encoding: BinaryEncoding::Base64,
-});
+}).expect("Failed to encode JSON.");
 println!("{}", json);
 ```
 

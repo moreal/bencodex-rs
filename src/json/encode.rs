@@ -87,12 +87,15 @@ pub struct JsonEncodeOptions {
 }
 
 /// Encode Bencodex to JSON with default options.
-pub fn to_json(value: &BencodexValue) -> String {
+pub fn to_json(value: &BencodexValue) -> Result<String, serde_json::Error> {
     to_json_with_options(value, JsonEncodeOptions::default())
 }
 
 /// Encode Bencodex to JSON with the given options.
-pub fn to_json_with_options(value: &BencodexValue, options: JsonEncodeOptions) -> String {
+pub fn to_json_with_options(
+    value: &BencodexValue,
+    options: JsonEncodeOptions,
+) -> Result<String, serde_json::Error> {
     let json_value = encode_value(value, &options);
-    serde_json::to_string(&json_value).unwrap()
+    serde_json::to_string(&json_value)
 }
