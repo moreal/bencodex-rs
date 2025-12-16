@@ -2,7 +2,7 @@
 name = "bencodex-rs"
 version = "0.6.0"
 authors = ["moreal <dev.moreal@gmail.com>"]
-edition = "2021"
+edition = "2024"
 description = "The Rust implementation of Bencodex"
 license = "MIT"
 keywords = ["bencodex", "encoding", "decoding"]
