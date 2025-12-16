@@ -1,67 +1,45 @@
 use base64::Engine;
+use serde_json::{Map, Value};
 
 use crate::{BencodexKey, BencodexValue};
 
-fn to_json_key_impl(
-    value: &BencodexKey,
-    options: &JsonEncodeOptions,
-    buf: &mut dyn std::io::Write,
-) -> std::io::Result<()> {
-    match value {
-        BencodexKey::Binary(arg0) => match options.binary_encoding {
-            BinaryEncoding::Base64 => buf.write_fmt(format_args!(
-                "\"b64:{}\"",
-                base64::engine::general_purpose::STANDARD.encode(arg0)
-            )),
-            BinaryEncoding::Hex => buf.write_fmt(format_args!("\"0x{}\"", hex::encode(arg0))),
+fn format_key(key: &BencodexKey, options: &JsonEncodeOptions) -> String {
+    match key {
+        BencodexKey::Binary(data) => match options.binary_encoding {
+            BinaryEncoding::Base64 => {
+                format!(
+                    "b64:{}",
+                    base64::engine::general_purpose::STANDARD.encode(data)
+                )
+            }
+            BinaryEncoding::Hex => format!("0x{}", hex::encode(data)),
         },
-        BencodexKey::Text(arg0) => {
-            buf.write_fmt(format_args!("\"\u{FEFF}{}\"", arg0.replace('\n', "\\n")))
-        }
-    }?;
-
-    Ok(())
+        BencodexKey::Text(text) => format!("\u{FEFF}{}", text),
+    }
 }
 
-fn to_json_value_impl(
-    value: &BencodexValue,
-    options: &JsonEncodeOptions,
-    buf: &mut dyn std::io::Write,
-) -> std::io::Result<()> {
+fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
     match value {
-        BencodexValue::Binary(arg0) => to_json_key_impl(&BencodexKey::from(arg0), options, buf),
-        BencodexValue::Text(arg0) => to_json_key_impl(&BencodexKey::from(arg0), options, buf),
-        BencodexValue::Boolean(arg0) => buf
-            .write_all(if *arg0 { b"true" } else { b"false" })
-            .map(|_| ()),
-        BencodexValue::Number(arg0) => write!(buf, "\"{}\"", arg0),
-        BencodexValue::List(arg0) => {
-            buf.write_all(b"[")?;
-            for (i, item) in arg0.iter().enumerate() {
-                to_json_value_impl(item, options, buf)?;
-                if i < arg0.len() - 1 {
-                    buf.write_all(b",")?;
-                }
-            }
-            buf.write_all(b"]").map(|_| ())
+        BencodexValue::Null => Value::Null,
+        BencodexValue::Boolean(b) => Value::Bool(*b),
+        BencodexValue::Number(n) => Value::String(n.to_string()),
+        BencodexValue::Binary(data) => {
+            Value::String(format_key(&BencodexKey::Binary(data.clone()), options))
         }
-        BencodexValue::Dictionary(arg0) => {
-            buf.write_all(b"{")?;
-            let mut iter = arg0.iter().peekable();
-            while let Some((key, value)) = iter.next() {
-                to_json_key_impl(key, options, buf)?;
-                buf.write_all(b":")?;
-                to_json_value_impl(value, options, buf)?;
-                if iter.peek().is_some() {
-                    buf.write_all(b",")?;
-                }
-            }
-            buf.write(b"}").map(|_| ())
+        BencodexValue::Text(text) => {
+            Value::String(format_key(&BencodexKey::Text(text.clone()), options))
         }
-        BencodexValue::Null => buf.write(b"null").map(|_| ()),
-    }?;
-
-    Ok(())
+        BencodexValue::List(items) => {
+            Value::Array(items.iter().map(|v| encode_value(v, options)).collect())
+        }
+        BencodexValue::Dictionary(map) => {
+            let obj: Map<String, Value> = map
+                .iter()
+                .map(|(k, v)| (format_key(k, options), encode_value(v, options)))
+                .collect();
+            Value::Object(obj)
+        }
+    }
 }
 
 /// An enum type to choose how to encode Bencodex binary type when encoding to JSON.
@@ -119,8 +97,6 @@ pub fn to_json(value: &BencodexValue) -> String {
 
 /// Encode Bencodex to JSON with the given options.
 pub fn to_json_with_options(value: &BencodexValue, options: JsonEncodeOptions) -> String {
-    let mut buf: Vec<u8> = vec![];
-    to_json_value_impl(value, &options, &mut buf).ok();
-
-    String::from_utf8(buf).unwrap()
+    let json_value = encode_value(value, &options);
+    serde_json::to_string(&json_value).unwrap()
 }
