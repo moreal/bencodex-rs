@@ -78,7 +78,15 @@ fn encode(args: &Args) -> ExitCode {
         },
     };
 
-    println!("{}", to_json_with_options(&decoded, json_encode_options));
+    let json_str = match to_json_with_options(&decoded, json_encode_options) {
+        Ok(json_str) => json_str,
+        Err(err) => {
+            eprintln!("Failed to encode JSON. {:?}", err);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    println!("{}", json_str);
 
     ExitCode::SUCCESS
 }
