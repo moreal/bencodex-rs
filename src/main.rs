@@ -31,26 +31,36 @@ fn main() -> ExitCode {
 fn decode() -> ExitCode {
     let mut buf = Vec::new();
     if let Err(err) = std::io::stdin().read_to_end(&mut buf) {
-        eprintln!("{:?}", err);
+        eprintln!("Failed to read from stdin: {:?}", err);
         return ExitCode::FAILURE;
     }
 
     let json = match serde_json::from_slice(&buf) {
         Ok(x) => x,
-        Err(_) => return ExitCode::FAILURE,
+        Err(err) => {
+            eprintln!("Failed to parse JSON: {:?}", err);
+            return ExitCode::FAILURE;
+        }
     };
 
     let bencodex_value = match from_json(&json) {
         Ok(x) => x,
-        Err(_) => return ExitCode::FAILURE,
+        Err(err) => {
+            eprintln!("Failed to decode JSON to Bencodex: {:?}", err);
+            return ExitCode::FAILURE;
+        }
     };
 
     buf = Vec::new();
-    if bencodex_value.encode(&mut buf).is_err() {
+    if let Err(err) = bencodex_value.encode(&mut buf) {
+        eprintln!("Failed to encode Bencodex to binary: {:?}", err);
         return ExitCode::FAILURE;
     }
 
-    let _ = std::io::stdout().write_all(&buf);
+    if let Err(err) = std::io::stdout().write_all(&buf) {
+        eprintln!("Failed to write to stdout: {:?}", err);
+        return ExitCode::FAILURE;
+    }
 
     ExitCode::SUCCESS
 }
@@ -58,14 +68,14 @@ fn decode() -> ExitCode {
 fn encode(args: &Args) -> ExitCode {
     let mut buf = Vec::new();
     if let Err(err) = std::io::stdin().read_to_end(&mut buf) {
-        eprintln!("{:?}", err);
+        eprintln!("Failed to read from stdin: {:?}", err);
         return ExitCode::FAILURE;
     }
 
     let decoded = match buf.decode() {
         Ok(value) => value,
         Err(err) => {
-            eprintln!("Failed to decode. {:?}", err);
+            eprintln!("Failed to decode to Bencodex: {:?}", err);
             return ExitCode::FAILURE;
         }
     };
@@ -81,7 +91,7 @@ fn encode(args: &Args) -> ExitCode {
     let json_str = match to_json_with_options(&decoded, json_encode_options) {
         Ok(json_str) => json_str,
         Err(err) => {
-            eprintln!("Failed to encode JSON. {:?}", err);
+            eprintln!("Failed to encode Bencodex to JSON: {:?}", err);
             return ExitCode::FAILURE;
         }
     };
