@@ -1,6 +1,5 @@
 use super::super::codec::utils;
-#[cfg(test)]
-use bencodex::json::{from_json_string, BinaryEncoding};
+use bencodex::json::{BinaryEncoding, from_json_string};
 
 #[test]
 fn spec_test_base64() {

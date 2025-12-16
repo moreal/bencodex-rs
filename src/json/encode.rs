@@ -43,15 +43,11 @@ fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
 }
 
 /// An enum type to choose how to encode Bencodex binary type when encoding to JSON.
+#[derive(Default)]
 pub enum BinaryEncoding {
+    #[default]
     Base64,
     Hex,
-}
-
-impl Default for BinaryEncoding {
-    fn default() -> Self {
-        Self::Base64
-    }
 }
 
 /// Options used by [`to_json_with_options`] when encoding Bencodex to JSON.

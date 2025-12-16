@@ -1,5 +1,5 @@
 use bencodex::{BencodexValue, Encode};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use num_bigint::BigInt;
 
 pub fn encode(c: &mut Criterion) {

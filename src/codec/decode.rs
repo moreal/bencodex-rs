@@ -262,7 +262,7 @@ fn decode_number_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usi
             return Err(DecodeError::UnexpectedTokenError {
                 token: vector[start + tsize],
                 point: start + tsize,
-            })
+            });
         }
         Some(v) => v,
     };
@@ -331,15 +331,9 @@ mod tests {
         #[test]
         fn should_return_error_with_overflowed_start() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(expected_error, decode_impl(&vec![], 1).unwrap_err());
-            assert_eq!(
-                expected_error,
-                decode_impl(&vec![b'1', b'2'], 2).unwrap_err()
-            );
-            assert_eq!(
-                expected_error,
-                decode_impl(&vec![b'1', b'2'], 20).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_impl(&[], 1).unwrap_err());
+            assert_eq!(expected_error, decode_impl(b"12", 2).unwrap_err());
+            assert_eq!(expected_error, decode_impl(b"12", 20).unwrap_err());
         }
 
         #[test]
@@ -349,14 +343,14 @@ mod tests {
                     token: b'x',
                     point: 0,
                 },
-                decode_impl(&vec![b'x'], 0).unwrap_err()
+                decode_impl(b"x", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'k',
                     point: 4,
                 },
-                decode_impl(&vec![b'x', b'y', b'z', b'o', b'k'], 4).unwrap_err()
+                decode_impl(b"xyzok", 4).unwrap_err()
             );
         }
     }
@@ -367,45 +361,24 @@ mod tests {
         #[test]
         fn should_return_error_with_insufficient_length_source() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd'], 0).unwrap_err()
-            );
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd'], 2).unwrap_err()
-            );
-            assert_eq!(expected_error, decode_dict_impl(&vec![], 0).unwrap_err());
+            assert_eq!(expected_error, decode_dict_impl(b"d", 0).unwrap_err());
+            assert_eq!(expected_error, decode_dict_impl(b"d", 2).unwrap_err());
+            assert_eq!(expected_error, decode_dict_impl(&[], 0).unwrap_err());
         }
 
         #[test]
         fn should_return_error_with_source_having_incorrect_key() {
             let expected_error = DecodeError::InvalidBencodexValueError;
             // { 0: null }
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd', b'i', b'0', b'e', b'n', b'e'], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_dict_impl(b"di0ene", 0).unwrap_err());
             // { null: null }
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd', b'n', b'n', b'e'], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_dict_impl(b"dnne", 0).unwrap_err());
             // { list: null }
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd', b'l', b'e', b'n', b'e'], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_dict_impl(b"dlene", 0).unwrap_err());
             // { dictionary: null }
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd', b'd', b'e', b'n', b'e'], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_dict_impl(b"ddene", 0).unwrap_err());
             // { boolean: null }
-            assert_eq!(
-                expected_error,
-                decode_dict_impl(&vec![b'd', b't', b'e', b'n', b'e'], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_dict_impl(b"dtene", 0).unwrap_err());
         }
 
         #[test]
@@ -415,14 +388,14 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_dict_impl(&vec![b'd', b'k', b'n', b'e'], 0).unwrap_err()
+                decode_dict_impl(b"dkne", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'k',
                     point: 4,
                 },
-                decode_dict_impl(&vec![b'd', b'1', b':', b'a', b'k', b'e'], 0).unwrap_err()
+                decode_dict_impl(b"d1:ake", 0).unwrap_err()
             );
         }
     }
@@ -433,15 +406,9 @@ mod tests {
         #[test]
         fn should_return_error_with_insufficient_length_source() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(
-                expected_error,
-                decode_list_impl(&vec![b'l'], 0).unwrap_err()
-            );
-            assert_eq!(
-                expected_error,
-                decode_list_impl(&vec![b'l'], 2).unwrap_err()
-            );
-            assert_eq!(expected_error, decode_list_impl(&vec![], 0).unwrap_err());
+            assert_eq!(expected_error, decode_list_impl(b"l", 0).unwrap_err());
+            assert_eq!(expected_error, decode_list_impl(b"l", 2).unwrap_err());
+            assert_eq!(expected_error, decode_list_impl(&[], 0).unwrap_err());
         }
 
         #[test]
@@ -451,7 +418,7 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_list_impl(&vec![b'l', b'k', b'e'], 0).unwrap_err()
+                decode_list_impl(b"lke", 0).unwrap_err()
             );
         }
     }
@@ -464,20 +431,17 @@ mod tests {
             let expected_error = DecodeError::InvalidBencodexValueError;
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(&vec![b'1'], 0).unwrap_err()
+                decode_byte_string_impl(b"1", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(&vec![b'1', b':'], 0).unwrap_err()
+                decode_byte_string_impl(b"1:", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(&vec![b'2', b':', b'a'], 0).unwrap_err()
+                decode_byte_string_impl(b"2:a", 0).unwrap_err()
             );
-            assert_eq!(
-                expected_error,
-                decode_byte_string_impl(&vec![], 0).unwrap_err()
-            );
+            assert_eq!(expected_error, decode_byte_string_impl(&[], 0).unwrap_err());
         }
 
         #[test]
@@ -487,7 +451,7 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_byte_string_impl(&vec![b'1', b'k', b'a'], 0).unwrap_err()
+                decode_byte_string_impl(b"1ka", 0).unwrap_err()
             );
         }
     }
@@ -500,23 +464,23 @@ mod tests {
             let expected_error = DecodeError::InvalidBencodexValueError;
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&vec![b'u'], 0).unwrap_err()
+                decode_unicode_string_impl(b"u", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&vec![b'u', b'1'], 0).unwrap_err()
+                decode_unicode_string_impl(b"u1", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&vec![b'u', b'2', b':', b'a'], 0).unwrap_err()
+                decode_unicode_string_impl(b"u2:a", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&vec![b'u', b'k'], 0).unwrap_err()
+                decode_unicode_string_impl(b"uk", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&vec![], 0).unwrap_err()
+                decode_unicode_string_impl(&[], 0).unwrap_err()
             );
         }
 
@@ -527,7 +491,7 @@ mod tests {
                     token: b'k',
                     point: 2
                 },
-                decode_unicode_string_impl(&vec![b'u', b'1', b'k', b'a'], 0).unwrap_err()
+                decode_unicode_string_impl(b"u1ka", 0).unwrap_err()
             );
         }
 
@@ -538,7 +502,7 @@ mod tests {
                     token: b'-',
                     point: 1,
                 },
-                decode_unicode_string_impl(&vec![b'u', b'-', b'1', b':', b'a'], 0).unwrap_err()
+                decode_unicode_string_impl(b"u-1:a", 0).unwrap_err()
             );
         }
 
@@ -546,7 +510,7 @@ mod tests {
         fn should_return_error_with_invalid_source_having_invalid_unicode_string() {
             assert_eq!(
                 DecodeError::InvalidBencodexValueError,
-                decode_unicode_string_impl(&vec![b'u', b'1', b':', 0x90], 0).unwrap_err()
+                decode_unicode_string_impl(&[b'u', b'1', b':', 0x90], 0).unwrap_err()
             );
         }
     }
@@ -557,19 +521,10 @@ mod tests {
         #[test]
         fn should_return_error_with_insufficient_length_source() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(
-                expected_error,
-                decode_number_impl(&vec![b'i'], 0).unwrap_err()
-            );
-            assert_eq!(
-                expected_error,
-                decode_number_impl(&vec![b'i', b'2'], 0).unwrap_err()
-            );
-            assert_eq!(
-                expected_error,
-                decode_number_impl(&vec![b'i', b'-', b'2'], 0).unwrap_err()
-            );
-            assert_eq!(expected_error, decode_number_impl(&vec![], 0).unwrap_err());
+            assert_eq!(expected_error, decode_number_impl(b"i", 0).unwrap_err());
+            assert_eq!(expected_error, decode_number_impl(b"i2", 0).unwrap_err());
+            assert_eq!(expected_error, decode_number_impl(b"i-2", 0).unwrap_err());
+            assert_eq!(expected_error, decode_number_impl(&[], 0).unwrap_err());
         }
 
         #[test]
@@ -579,14 +534,14 @@ mod tests {
                     token: b'a',
                     point: 1,
                 },
-                decode_number_impl(&vec![b'i', b'a', b'a'], 0).unwrap_err()
+                decode_number_impl(b"iaa", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'a',
                     point: 2,
                 },
-                decode_number_impl(&vec![b'i', b'1', b'a'], 0).unwrap_err()
+                decode_number_impl(b"i1a", 0).unwrap_err()
             );
         }
     }

@@ -173,8 +173,7 @@ where
 #[cfg(test)]
 mod tests {
     mod into {
-        use std::array::IntoIter;
-        use std::{collections::BTreeMap, iter::FromIterator};
+        use std::collections::BTreeMap;
 
         use super::super::{BencodexKey, BencodexValue};
 
@@ -307,10 +306,10 @@ mod tests {
             map.insert("foo".to_string(), b"bar");
             let actual: BencodexValue = map.into();
 
-            let expected = BencodexValue::Dictionary(BTreeMap::from_iter(IntoIter::new([(
+            let expected = BencodexValue::Dictionary(BTreeMap::from_iter([(
                 BencodexKey::Text("foo".to_string()),
                 BencodexValue::Binary(vec![b'b', b'a', b'r']),
-            )])));
+            )]));
 
             assert_eq!(actual, expected);
         }

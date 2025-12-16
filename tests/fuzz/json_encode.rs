@@ -1,5 +1,5 @@
 use super::bencodex_value;
-use bencodex::json::{to_json, to_json_with_options, BinaryEncoding, JsonEncodeOptions};
+use bencodex::json::{BinaryEncoding, JsonEncodeOptions, to_json, to_json_with_options};
 use proptest::prelude::*;
 
 proptest! {

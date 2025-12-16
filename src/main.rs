@@ -1,4 +1,4 @@
-use bencodex::json::{from_json, to_json_with_options, BinaryEncoding, JsonEncodeOptions};
+use bencodex::json::{BinaryEncoding, JsonEncodeOptions, from_json, to_json_with_options};
 use bencodex::{Decode, Encode};
 use clap::Parser;
 use std::io::{Read, Write};

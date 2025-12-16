@@ -265,32 +265,23 @@ mod tests {
                 Ordering::Equal,
                 compare_vector(&Vec::<u8>::new(), &Vec::<u8>::new())
             );
-            assert_eq!(
-                Ordering::Equal,
-                compare_vector(&vec![1, 2, 3], &vec![1, 2, 3])
-            );
+            assert_eq!(Ordering::Equal, compare_vector(&[1, 2, 3], &[1, 2, 3]));
         }
 
         #[test]
         fn should_return_less() {
-            assert_eq!(Ordering::Less, compare_vector(&vec![], &vec![3]));
-            assert_eq!(Ordering::Less, compare_vector(&vec![0], &vec![1, 2, 3]));
-            assert_eq!(Ordering::Less, compare_vector(&vec![1], &vec![9, 1, 1]));
-            assert_eq!(Ordering::Less, compare_vector(&vec![1, 2], &vec![1, 2, 3]));
-            assert_eq!(
-                Ordering::Less,
-                compare_vector(&vec![1, 9, 9], &vec![9, 1, 1])
-            );
+            assert_eq!(Ordering::Less, compare_vector(&[], &[3]));
+            assert_eq!(Ordering::Less, compare_vector(&[0], &[1, 2, 3]));
+            assert_eq!(Ordering::Less, compare_vector(&[1], &[9, 1, 1]));
+            assert_eq!(Ordering::Less, compare_vector(&[1, 2], &[1, 2, 3]));
+            assert_eq!(Ordering::Less, compare_vector(&[1, 9, 9], &[9, 1, 1]));
         }
 
         #[test]
         fn should_return_greater() {
-            assert_eq!(Ordering::Greater, compare_vector(&vec![9], &vec![]));
-            assert_eq!(Ordering::Greater, compare_vector(&vec![9], &vec![1, 2, 3]));
-            assert_eq!(
-                Ordering::Greater,
-                compare_vector(&vec![1, 9, 2], &vec![1, 2, 2])
-            );
+            assert_eq!(Ordering::Greater, compare_vector(&[9], &[]));
+            assert_eq!(Ordering::Greater, compare_vector(&[9], &[1, 2, 3]));
+            assert_eq!(Ordering::Greater, compare_vector(&[1, 9, 2], &[1, 2, 2]));
         }
     }
 
@@ -303,7 +294,7 @@ mod tests {
         impl ConditionFailWriter {
             fn new(throw_counts: Vec<u64>) -> ConditionFailWriter {
                 ConditionFailWriter {
-                    throw_counts: throw_counts,
+                    throw_counts,
                     call_count: 0,
                 }
             }
@@ -314,7 +305,7 @@ mod tests {
             fn write(&mut self, bytes: &[u8]) -> std::result::Result<usize, std::io::Error> {
                 self.call_count += 1;
                 if self.throw_counts.contains(&self.call_count) {
-                    Err(std::io::Error::new(std::io::ErrorKind::Other, ""))
+                    Err(std::io::Error::other(""))
                 } else {
                     Ok(bytes.len())
                 }
@@ -323,7 +314,7 @@ mod tests {
             fn write_all(&mut self, _: &[u8]) -> std::result::Result<(), std::io::Error> {
                 self.call_count += 1;
                 if self.throw_counts.contains(&self.call_count) {
-                    Err(std::io::Error::new(std::io::ErrorKind::Other, ""))
+                    Err(std::io::Error::other(""))
                 } else {
                     Ok(())
                 }

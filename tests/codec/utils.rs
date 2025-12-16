@@ -1,20 +1,18 @@
 use base64::Engine;
-use itertools::Itertools;
 use num_bigint::BigInt;
 use num_traits::cast::FromPrimitive;
 #[cfg(feature = "json")]
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::fs;
 use std::fs::DirEntry;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
+use yaml_rust::Event;
 use yaml_rust::parser::MarkedEventReceiver;
 use yaml_rust::parser::Parser;
 use yaml_rust::scanner::{Marker, ScanError, TokenType};
-use yaml_rust::Event;
 
 use bencodex::codec::types::{BencodexKey, BencodexValue};
 #[cfg(feature = "json")]
@@ -141,7 +139,7 @@ impl TestsuiteYamlLoader {
                 (BencodexValue::Dictionary(ref mut h), _) => {
                     let cur_key = self.key_stack.last().unwrap();
                     // current node is a key
-                    if let None = cur_key {
+                    if cur_key.is_none() {
                         self.key_stack.pop();
                         self.key_stack.push(match node.0 {
                             BencodexValue::Binary(v) => Some(BencodexKey::Binary(v)),
@@ -172,18 +170,21 @@ impl TestsuiteYamlLoader {
     }
 }
 
+#[cfg(feature = "json")]
 #[derive(Debug)]
 struct SpecImportError {
     #[allow(dead_code)]
     msg: String,
 }
 
+#[cfg(feature = "json")]
 impl std::fmt::Display for SpecImportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
+#[cfg(feature = "json")]
 impl SpecImportError {
     pub fn new<T: ToString>(msg: T) -> SpecImportError {
         SpecImportError {
@@ -192,15 +193,15 @@ impl SpecImportError {
     }
 }
 
-impl Error for SpecImportError {}
+#[cfg(feature = "json")]
+impl std::error::Error for SpecImportError {}
 
 #[cfg(feature = "json")]
 fn hex_to_base64(s: &String) -> String {
-    if s.starts_with("0x") {
+    if let Some(stripped) = s.strip_prefix("0x") {
         format!(
             "b64:{}",
-            base64::engine::general_purpose::STANDARD
-                .encode(hex::decode(s[2..].to_owned()).unwrap())
+            base64::engine::general_purpose::STANDARD.encode(hex::decode(stripped).unwrap())
         )
     } else {
         s.to_owned()
@@ -209,12 +210,12 @@ fn hex_to_base64(s: &String) -> String {
 
 #[cfg(feature = "json")]
 fn base64_to_hex(s: &String) -> String {
-    if s.starts_with("b64:") {
+    if let Some(stripped) = s.strip_prefix("b64:") {
         format!(
             "0x{}",
             hex::encode(
                 base64::engine::general_purpose::STANDARD
-                    .decode(s[4..].to_owned())
+                    .decode(stripped)
                     .unwrap()
             )
         )
@@ -282,13 +283,13 @@ pub fn iter_spec() -> std::io::Result<Vec<Spec>> {
         .map(|entry: std::io::Result<DirEntry>| -> Spec {
             if let Ok(file) = entry {
                 let mut path: PathBuf = file.path();
-                let encoded = match fs::read(path.to_owned()) {
+                let encoded = match fs::read(&path) {
                     Ok(v) => v,
                     Err(why) => panic!("{}", why),
                 };
 
                 path.set_extension("yaml");
-                let content = match fs::read_to_string(path.to_owned()) {
+                let content = match fs::read_to_string(&path) {
                     Ok(s) => s,
                     Err(why) => panic!("{}", why),
                 };
@@ -303,8 +304,8 @@ pub fn iter_spec() -> std::io::Result<Vec<Spec>> {
                 println!("path {:?}", path);
 
                 Spec {
-                    bvalue: bvalue,
-                    encoded: encoded,
+                    bvalue,
+                    encoded,
                     name: path.file_name().unwrap().to_str().unwrap().to_owned(),
                 }
             } else {
@@ -339,13 +340,13 @@ pub fn iter_spec_with_json(
         .map(|entry: std::io::Result<DirEntry>| -> SpecWithJson {
             if let Ok(file) = entry {
                 let mut path: PathBuf = file.path();
-                let encoded = match fs::read(path.to_owned()) {
+                let encoded = match fs::read(&path) {
                     Ok(v) => v,
                     Err(why) => panic!("{}", why),
                 };
 
                 path.set_extension("yaml");
-                let content = match fs::read_to_string(path.to_owned()) {
+                let content = match fs::read_to_string(&path) {
                     Ok(s) => s,
                     Err(why) => panic!("{}", why),
                 };
@@ -359,7 +360,7 @@ pub fn iter_spec_with_json(
                 path.set_extension("repr.json");
                 println!("path {:?}", path);
 
-                let json = match fs::read_to_string(path.to_owned())
+                let json = match fs::read_to_string(&path)
                     .map_err(|_| SpecImportError::new("Failed to read json."))
                     .and_then(|x| {
                         x.parse::<Value>()
