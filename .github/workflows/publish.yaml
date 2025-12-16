@@ -7,6 +7,8 @@ name: publish
 jobs:
   publish-crate:
     runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -14,4 +16,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: cargo
-      - run: cargo publish --token ${{ secrets.CRATES_IO_ACCESS_KEY }}
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
