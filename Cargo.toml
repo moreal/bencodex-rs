@@ -1,6 +1,6 @@
 [package]
 name = "bencodex-rs"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["moreal <dev.moreal@gmail.com>"]
 edition = "2021"
 description = "The Rust implementation of Bencodex"
