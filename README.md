@@ -128,6 +128,12 @@ Also, it provides a CLI tool to encode from Bencodex to JSON and to decode from 
 cargo install bencodex-rs --features json-cli
 ```
 
+For improved decoding performance, you can also enable SIMD acceleration:
+
+```bash
+cargo install bencodex-rs --features json-cli,simd
+```
+
 You can use like the below:
 
 ```bash

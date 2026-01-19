@@ -1,5 +1,7 @@
+#[cfg(not(feature = "simd"))]
+use bencodex::Decode;
+use bencodex::Encode;
 use bencodex::json::{BinaryEncoding, JsonEncodeOptions, from_json, to_json_with_options};
-use bencodex::{Decode, Encode};
 use clap::Parser;
 use std::io::{Read, Write};
 use std::process::ExitCode;
@@ -72,6 +74,16 @@ fn encode(args: &Args) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    #[cfg(feature = "simd")]
+    let decoded = match bencodex::simd::decode_simd(&buf) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!("Failed to decode to Bencodex: {:?}", err);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    #[cfg(not(feature = "simd"))]
     let decoded = match buf.decode() {
         Ok(value) => value,
         Err(err) => {
