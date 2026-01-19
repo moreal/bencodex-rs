@@ -173,8 +173,8 @@ where
 #[cfg(test)]
 mod tests {
     mod into {
-        use alloc::vec;
         use crate::prelude::*;
+        use alloc::vec;
 
         use super::super::{BencodexKey, BencodexValue};
 

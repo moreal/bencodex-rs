@@ -14,3 +14,12 @@ pub use codec::types::{
 
 #[cfg(feature = "json")]
 pub mod json;
+
+/// SIMD-accelerated decoding module.
+///
+/// Provides `decode_simd()` function for faster Bencodex decoding using
+/// SIMD instructions on supported platforms (x86_64 SSE4.2/AVX2, AArch64 NEON).
+#[cfg(feature = "simd")]
+pub mod simd {
+    pub use crate::codec::simd::decode_simd;
+}

@@ -62,6 +62,24 @@ pub trait Decode {
     /// ```
     /// [Bencodex]: https://bencodex.org/
     fn decode(self) -> Result<BencodexValue, DecodeError>;
+
+    /// Decodes a [Bencodex] value using SIMD-accelerated parsing.
+    ///
+    /// This method uses SIMD instructions to speed up parsing on supported platforms:
+    /// - x86_64: SSE4.2 or AVX2 (runtime detection)
+    /// - AArch64: NEON (always available)
+    /// - Other platforms: Falls back to scalar implementation
+    ///
+    /// # Examples
+    /// ```ignore
+    /// use bencodex::{ Decode, BencodexValue };
+    ///
+    /// let vec = b"i42e".to_vec();
+    /// let number = vec.decode_simd().unwrap();
+    /// ```
+    /// [Bencodex]: https://bencodex.org/
+    #[cfg(feature = "simd")]
+    fn decode_simd(self) -> Result<BencodexValue, DecodeError>;
 }
 
 trait ShouldNotBeNone<T> {
@@ -321,6 +339,11 @@ impl Decode for Vec<u8> {
     fn decode(self) -> Result<BencodexValue, DecodeError> {
         Ok(decode_impl(&self, 0)?.0)
     }
+
+    #[cfg(feature = "simd")]
+    fn decode_simd(self) -> Result<BencodexValue, DecodeError> {
+        crate::codec::simd::decode_simd(&self)
+    }
 }
 
 #[cfg(test)]
@@ -549,8 +572,8 @@ mod tests {
     mod vec_u8 {
         mod decode_impl {
             mod decode {
-                use alloc::vec;
                 use super::super::super::super::*;
+                use alloc::vec;
 
                 #[test]
                 fn should_pass_error() {
