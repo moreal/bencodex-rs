@@ -24,3 +24,12 @@ jobs:
         with:
           name: code-coverage-report
           path: cobertura.xml
+
+  run-tests-no-std:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --no-default-features --features alloc

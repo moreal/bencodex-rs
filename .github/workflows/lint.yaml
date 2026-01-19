@@ -1,7 +1,7 @@
 on: push
 name: lint
 jobs:
-  run-tests:
+  fmt:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -11,3 +11,25 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-features -- -D warnings
+
+  clippy-no-std:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --no-default-features --features alloc -- -D warnings
