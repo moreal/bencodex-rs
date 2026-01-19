@@ -1,5 +1,5 @@
+use crate::prelude::*;
 use num_bigint::BigInt;
-use std::{collections::BTreeMap, fmt::Debug};
 
 /// The type alias of `BTreepMap<BencodexKey, BencodexValue>` to reduce code size.
 ///
@@ -173,7 +173,7 @@ where
 #[cfg(test)]
 mod tests {
     mod into {
-        use std::collections::BTreeMap;
+        use crate::prelude::*;
 
         use super::super::{BencodexKey, BencodexValue};
 

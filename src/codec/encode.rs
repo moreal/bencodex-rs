@@ -1,10 +1,10 @@
 use super::types::*;
+use crate::io::{Error as IoError, Write};
+use crate::prelude::*;
+use core::cmp::Ordering;
+use core::result::Result;
 use itertools::Itertools;
 use num_bigint::BigInt;
-use std::cmp::Ordering;
-use std::collections::BTreeMap;
-use std::io;
-use std::result::Result;
 
 /// `Encode` is a trait to encode a [Bencodex] value.
 ///
@@ -12,7 +12,7 @@ use std::result::Result;
 pub trait Encode {
     /// Encode a [Bencodex] value from this type.
     ///
-    /// If encoding succeeds, return [`Ok`]. Otherwise, it will pass [`std::io::Error`] occurred in inner logic.
+    /// If encoding succeeds, return [`Ok`]. Otherwise, it will pass an I/O error occurred in inner logic.
     ///
     /// # Examples
     /// Basic usage with [`BencodexValue::Text`]:
@@ -26,7 +26,19 @@ pub trait Encode {
     /// assert_eq!(vec, vec![b'u', b'4', b':', b't', b'e', b'x', b't']);
     /// ```
     /// [Bencodex]: https://bencodex.org/
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error>;
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError>;
+}
+
+fn write_usize<W: Write>(writer: &mut W, n: usize) -> Result<(), IoError> {
+    let mut buf = itoa::Buffer::new();
+    let s = buf.format(n);
+    writer.write_all(s.as_bytes())
+}
+
+fn write_i64<W: Write>(writer: &mut W, n: i64) -> Result<(), IoError> {
+    let mut buf = itoa::Buffer::new();
+    let s = buf.format(n);
+    writer.write_all(s.as_bytes())
 }
 
 impl Encode for Vec<u8> {
@@ -37,8 +49,9 @@ impl Encode for Vec<u8> {
     /// b"hello".to_vec().encode(&mut buf);
     /// assert_eq!(buf, b"5:hello");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
-        write!(writer, "{}:", self.len())?;
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+        write_usize(writer, self.len())?;
+        writer.write_all(b":")?;
         writer.write_all(&self)?;
 
         Ok(())
@@ -53,8 +66,10 @@ impl Encode for i64 {
     /// 1004i64.encode(&mut buf);
     /// assert_eq!(buf, b"i1004e");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
-        write!(writer, "i{}e", self)
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+        writer.write_all(b"i")?;
+        write_i64(writer, self)?;
+        writer.write_all(b"e")
     }
 }
 
@@ -66,9 +81,11 @@ impl Encode for String {
     /// "foo".to_string().encode(&mut buf);
     /// assert_eq!(buf, b"u3:foo");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         let bytes = self.into_bytes();
-        write!(writer, "u{}:", bytes.len())?;
+        writer.write_all(b"u")?;
+        write_usize(writer, bytes.len())?;
+        writer.write_all(b":")?;
         writer.write_all(&bytes)?;
 
         Ok(())
@@ -83,7 +100,7 @@ impl Encode for bool {
     /// true.encode(&mut buf);
     /// assert_eq!(buf, b"t");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(match self {
             true => b"t",
             false => b"f",
@@ -102,9 +119,9 @@ impl Encode for BigInt {
     /// BigInt::from(0).encode(&mut buf);
     /// assert_eq!(buf, b"i0e");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"i")?;
-        writer.write_all(&self.to_str_radix(10).into_bytes())?;
+        writer.write_all(self.to_str_radix(10).as_bytes())?;
         writer.write_all(b"e")?;
 
         Ok(())
@@ -121,7 +138,7 @@ impl Encode for Vec<BencodexValue> {
     /// list.encode(&mut buf);
     /// assert_eq!(buf, b"li0ene");
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"l")?;
         for el in self {
             el.encode(writer)?;
@@ -132,14 +149,14 @@ impl Encode for Vec<BencodexValue> {
     }
 }
 
-fn encode_null(writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+fn encode_null<W: Write>(writer: &mut W) -> Result<(), IoError> {
     writer.write_all(b"n")?;
 
     Ok(())
 }
 
 impl Encode for BencodexValue {
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         // FIXME: rewrite more beautiful.
         match self {
             BencodexValue::Binary(x) => x.encode(writer)?,
@@ -189,7 +206,7 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     ///
     /// assert_eq!(buf, b"du0:u0:e")
     /// ```
-    fn encode(self, writer: &mut dyn io::Write) -> Result<(), std::io::Error> {
+    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
         let pairs = self
             .into_iter()
             .sorted_by(|(x, _), (y, _)| compare_key(x, y));
@@ -286,6 +303,26 @@ mod tests {
     }
 
     mod encode {
+        mod btree_map {
+            use super::super::super::*;
+
+            #[test]
+            fn should_order_keys() {
+                let mut bvalue: BTreeMap<BencodexKey, BencodexValue> = BTreeMap::new();
+                bvalue.insert(BencodexKey::Text("ua".to_string()), BencodexValue::Null);
+                bvalue.insert(BencodexKey::Binary(vec![b'a']), BencodexValue::Null);
+                bvalue.insert(BencodexKey::Text("ub".to_string()), BencodexValue::Null);
+                bvalue.insert(BencodexKey::Binary(vec![b'b']), BencodexValue::Null);
+
+                let mut writer = Vec::new();
+                assert!(bvalue.to_owned().encode(&mut writer).is_ok());
+                assert_eq!(b"d1:an1:bnu2:uanu2:ubne".to_vec(), writer);
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    mod encode_std {
         struct ConditionFailWriter {
             throw_counts: Vec<u64>,
             call_count: u64,
@@ -356,19 +393,6 @@ mod tests {
         mod btree_map {
             use super::super::super::*;
             use super::*;
-
-            #[test]
-            fn should_order_keys() {
-                let mut bvalue: BTreeMap<BencodexKey, BencodexValue> = BTreeMap::new();
-                bvalue.insert(BencodexKey::Text("ua".to_string()), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Binary(vec![b'a']), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Text("ub".to_string()), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Binary(vec![b'b']), BencodexValue::Null);
-
-                let mut writer = Vec::new();
-                assert!(bvalue.to_owned().encode(&mut writer).is_ok());
-                assert_eq!(b"d1:an1:bnu2:uanu2:ubne".to_vec(), writer);
-            }
 
             #[test]
             fn should_pass_error() {

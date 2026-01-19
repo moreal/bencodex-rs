@@ -6,10 +6,33 @@ The [Rust] implementation of [Bencodex].
 
 - **Correctness** - Implement Bencodex spec and passed tests with its testsuites.
 - **[Bencodex JSON]** - Support encoding Bencodex to JSON and decoding JSON to Bencodex.
-- **Feature flags** - Support `json`, `json-cli` feature flags to minimize binary size in use.
+- **Feature flags** - Support `std`, `alloc`, `json`, `json-cli` feature flags to minimize binary size in use.
+- **`no_std` support** - Can be used in embedded environments with `alloc`.
 
 [Rust]: https://rust-lang.org/
 [Bencodex]: https://bencodex.org/
+
+## Feature Flags
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `std` | Yes | Enables standard library support |
+| `alloc` | Yes (via `std`) | Enables `alloc` crate for `no_std` environments |
+| `json` | No | Enables Bencodex JSON encoding/decoding |
+| `json-cli` | No | Enables CLI tool for JSON conversion |
+
+## `no_std` Support
+
+This crate supports `no_std` environments with the `alloc` crate. To use in a `no_std` environment:
+
+```toml
+[dependencies]
+bencodex-rs = { version = "<VERSION>", default-features = false, features = ["alloc"] }
+```
+
+**Notes:**
+- `no_std` support requires Rust 1.81+ (for `core::error::Error` stabilization).
+- The `json` feature requires `std` and is not available in `no_std` environments.
 
 ## Bencodex JSON feature
 

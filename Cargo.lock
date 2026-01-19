@@ -87,6 +87,7 @@ dependencies = [
  "codspeed-criterion-compat",
  "hex",
  "itertools 0.13.0",
+ "itoa",
  "num-bigint",
  "num-traits",
  "proptest",

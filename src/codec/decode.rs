@@ -1,12 +1,12 @@
 use super::types::*;
+use crate::prelude::*;
+use core::error::Error;
+use core::fmt;
+use core::result::Result;
+use core::str;
+use core::str::FromStr;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
-use std::collections::BTreeMap;
-use std::error::Error;
-use std::fmt;
-use std::result::Result;
-use std::str;
-use std::str::FromStr;
 
 /// The error type which is returned from decoding a Bencodex value through [`Decode::decode`].
 #[derive(Debug, PartialEq)]
