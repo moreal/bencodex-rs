@@ -4,6 +4,8 @@ use proptest::prelude::*;
 
 #[cfg(feature = "json")]
 pub mod json_encode;
+#[cfg(feature = "simd")]
+pub mod simd_decode;
 
 pub fn bencodex_key() -> impl Strategy<Value = BencodexKey> {
     prop_oneof![
@@ -22,7 +24,7 @@ fn bigint() -> impl Strategy<Value = BigInt> {
     })
 }
 
-fn leaf_value() -> impl Strategy<Value = BencodexValue> {
+pub fn leaf_value() -> impl Strategy<Value = BencodexValue> {
     prop_oneof![
         Just(BencodexValue::Null),
         any::<bool>().prop_map(BencodexValue::Boolean),

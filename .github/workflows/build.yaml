@@ -2,7 +2,10 @@ on: push
 name: build
 jobs:
   check-build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -19,7 +22,6 @@ jobs:
         with:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: thumbv7em-none-eabihf
+      - run: rustup target add thumbv7em-none-eabihf
       - run: cargo build --no-default-features --features alloc
       - run: cargo build --no-default-features --features alloc --target thumbv7em-none-eabihf

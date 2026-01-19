@@ -26,6 +26,7 @@ alloc = ["itertools/use_alloc"]
 json = ["std", "serde_json", "hex/std", "base64/std"]
 json-cli = ["json", "clap"]
 test = ["base64"]
+simd = ["std"]                    # SIMD (runtime CPU detection)
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -49,4 +50,8 @@ base64 = "0.22.1"
 
 [[bench]]
 name = "encode"
+harness = false
+
+[[bench]]
+name = "decode"
 harness = false

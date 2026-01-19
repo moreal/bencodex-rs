@@ -34,6 +34,26 @@ If you want to test JSON-related tests too:
 cargo test --features test,json
 ```
 
+# Fuzz Test
+
+To run the SIMD decoder fuzzer tests:
+
+```
+cargo test --all-features simd_decode
+```
+
+To run with more test cases:
+
+```
+PROPTEST_CASES=10000 cargo test --all-features simd_decode
+```
+
+To see detailed output on failure (including shrinking results):
+
+```
+cargo test --all-features simd_decode -- --nocapture
+```
+
 # Format
 
 ```

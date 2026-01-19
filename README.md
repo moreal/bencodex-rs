@@ -20,6 +20,32 @@ The [Rust] implementation of [Bencodex].
 | `alloc` | Yes (via `std`) | Enables `alloc` crate for `no_std` environments |
 | `json` | No | Enables Bencodex JSON encoding/decoding |
 | `json-cli` | No | Enables CLI tool for JSON conversion |
+| `simd` | No | Enables SIMD-accelerated decoding |
+
+## SIMD Decoding
+
+The `simd` feature provides SIMD-accelerated decoding for improved performance on large data. This feature requires `std` and is not available in `no_std` environments.
+
+**Supported architectures:**
+- x86_64: SSE4.2 and AVX2 (runtime detection)
+- AArch64: NEON
+
+```toml
+[dependencies]
+bencodex-rs = { version = "<VERSION>", features = ["simd"] }
+```
+
+```rust
+use bencodex::{Decode, BencodexValue};
+
+// Using trait method
+let data = b"i42e".to_vec();
+let value = data.decode_simd().unwrap();
+
+// Or using the function directly
+use bencodex::simd::decode_simd;
+let value = decode_simd(b"li1ei2ei3ee").unwrap();
+```
 
 ## `no_std` Support
 
@@ -100,6 +126,12 @@ Also, it provides a CLI tool to encode from Bencodex to JSON and to decode from 
 
 ```bash
 cargo install bencodex-rs --features json-cli
+```
+
+For improved decoding performance, you can also enable SIMD acceleration:
+
+```bash
+cargo install bencodex-rs --features json-cli,simd
 ```
 
 You can use like the below:
