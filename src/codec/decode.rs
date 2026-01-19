@@ -549,6 +549,7 @@ mod tests {
     mod vec_u8 {
         mod decode_impl {
             mod decode {
+                use alloc::vec;
                 use super::super::super::super::*;
 
                 #[test]

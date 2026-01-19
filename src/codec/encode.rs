@@ -304,6 +304,7 @@ mod tests {
 
     mod encode {
         mod btree_map {
+            use alloc::vec;
             use super::super::super::*;
 
             #[test]
