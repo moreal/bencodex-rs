@@ -55,3 +55,9 @@ harness = false
 [[bench]]
 name = "decode"
 harness = false
+
+[profile.profiling]
+inherits = "release"
+debug = 2
+strip = false
+lto = false
