@@ -1,7 +1,64 @@
 use base64::Engine;
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::{Map, Value};
 
 use crate::{BencodexKey, BencodexValue};
+
+struct BencodexJsonEncoder<'a> {
+    value: &'a BencodexValue,
+    options: JsonEncodeOptions,
+}
+
+impl<'a> BencodexJsonEncoder<'a> {
+    pub fn new(value: &'a BencodexValue, options: JsonEncodeOptions) -> Self {
+        Self { value, options }
+    }
+}
+
+impl Serialize for BencodexJsonEncoder<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serialize_value(self.value, &self.options, serializer)
+    }
+}
+
+fn serialize_value<S>(
+    value: &BencodexValue,
+    options: &JsonEncodeOptions,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match value {
+        BencodexValue::Null => serializer.serialize_none(),
+        BencodexValue::Boolean(b) => serializer.serialize_bool(*b),
+        BencodexValue::Number(n) => serializer.serialize_str(&n.to_string()),
+        BencodexValue::Binary(data) => {
+            serializer.serialize_str(&format_binary(data, options.binary_encoding))
+        }
+        BencodexValue::Text(text) => serializer.serialize_str(&format_text(text)),
+        BencodexValue::List(items) => {
+            let mut seq = serializer.serialize_seq(Some(items.len()))?;
+            for item in items {
+                seq.serialize_element(&BencodexJsonEncoder::new(item, *options))?;
+            }
+            seq.end()
+        }
+        BencodexValue::Dictionary(map) => {
+            let mut m = serializer.serialize_map(Some(map.len()))?;
+            for (k, v) in map {
+                m.serialize_entry(
+                    &format_key(k, options),
+                    &BencodexJsonEncoder::new(v, *options),
+                )?;
+            }
+            m.end()
+        }
+    }
+}
 
 fn format_key(key: &BencodexKey, options: &JsonEncodeOptions) -> String {
     match key {
@@ -91,14 +148,18 @@ pub enum BinaryEncoding {
 ///
 /// JsonEncodeOptions::default();
 /// ```
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct JsonEncodeOptions {
     pub binary_encoding: BinaryEncoding,
 }
 
 /// Encode Bencodex to JSON with default options.
 pub fn to_json(value: &BencodexValue) -> Result<String, serde_json::Error> {
-    to_json_with_options(value, JsonEncodeOptions::default())
+    // to_json_with_options(value, JsonEncodeOptions::default())
+    serde_json::to_string(&BencodexJsonEncoder::new(
+        value,
+        JsonEncodeOptions::default(),
+    ))
 }
 
 /// Encode Bencodex to JSON with the given options.
@@ -106,6 +167,7 @@ pub fn to_json_with_options(
     value: &BencodexValue,
     options: JsonEncodeOptions,
 ) -> Result<String, serde_json::Error> {
-    let json_value = encode_value(value, &options);
-    serde_json::to_string(&json_value)
+    // let json_value = encode_value(value, &options);
+    // serde_json::to_string(&json_value)
+    serde_json::to_string(&BencodexJsonEncoder::new(value, options))
 }

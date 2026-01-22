@@ -92,6 +92,7 @@ dependencies = [
  "num-traits",
  "proptest",
  "quote",
+ "serde",
  "serde_json",
  "syn",
  "yaml-rust",
