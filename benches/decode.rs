@@ -55,8 +55,7 @@ pub fn decode_scalar(c: &mut Criterion) {
     bench_decode_files!(group,
         "ncavatar_1" => "../_data/ncavatar_1.bin",
         "ncinventory_1" => "../_data/ncinventory_1.bin",
-        // Add new files here:
-        // "new_file" => "../_data/new_file.bin",
+        "large_random_0" => "../_data/large_random_0.bin",
     );
 
     group.finish();
@@ -69,8 +68,7 @@ pub fn decode_simd(c: &mut Criterion) {
     bench_decode_files_simd!(group,
         "ncavatar_1" => "../_data/ncavatar_1.bin",
         "ncinventory_1" => "../_data/ncinventory_1.bin",
-        // Add new files here:
-        // "new_file" => "../_data/new_file.bin",
+        "large_random_0" => "../_data/large_random_0.bin",
     );
 
     group.finish();
