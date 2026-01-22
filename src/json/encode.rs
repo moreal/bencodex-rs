@@ -5,17 +5,27 @@ use crate::{BencodexKey, BencodexValue};
 
 fn format_key(key: &BencodexKey, options: &JsonEncodeOptions) -> String {
     match key {
-        BencodexKey::Binary(data) => match options.binary_encoding {
-            BinaryEncoding::Base64 => {
-                format!(
-                    "b64:{}",
-                    base64::engine::general_purpose::STANDARD.encode(data)
-                )
-            }
-            BinaryEncoding::Hex => format!("0x{}", hex::encode(data)),
-        },
-        BencodexKey::Text(text) => format!("\u{FEFF}{}", text),
+        BencodexKey::Binary(data) => format_binary(data, options.binary_encoding),
+        BencodexKey::Text(text) => format_text(text),
     }
+}
+
+#[inline(always)]
+fn format_binary(data: &[u8], encoding: BinaryEncoding) -> String {
+    match encoding {
+        BinaryEncoding::Base64 => {
+            format!(
+                "b64:{}",
+                base64::engine::general_purpose::STANDARD.encode(data)
+            )
+        }
+        BinaryEncoding::Hex => format!("0x{}", hex::encode(data)),
+    }
+}
+
+#[inline(always)]
+fn format_text(text: &str) -> String {
+    format!("\u{FEFF}{}", text)
 }
 
 fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
@@ -23,12 +33,8 @@ fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
         BencodexValue::Null => Value::Null,
         BencodexValue::Boolean(b) => Value::Bool(*b),
         BencodexValue::Number(n) => Value::String(n.to_string()),
-        BencodexValue::Binary(data) => {
-            Value::String(format_key(&BencodexKey::Binary(data.clone()), options))
-        }
-        BencodexValue::Text(text) => {
-            Value::String(format_key(&BencodexKey::Text(text.clone()), options))
-        }
+        BencodexValue::Binary(data) => Value::String(format_binary(data, options.binary_encoding)),
+        BencodexValue::Text(text) => Value::String(format_text(text)),
         BencodexValue::List(items) => {
             Value::Array(items.iter().map(|v| encode_value(v, options)).collect())
         }
@@ -43,7 +49,7 @@ fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
 }
 
 /// An enum type to choose how to encode Bencodex binary type when encoding to JSON.
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub enum BinaryEncoding {
     #[default]
     Base64,
