@@ -38,6 +38,32 @@ macro_rules! bench_encode_files {
     };
 }
 
+#[cfg(feature = "json")]
+macro_rules! bench_to_json_files {
+    ($group:expr, $( $name:literal => $path:literal ),* $(,)?) => {
+        $(
+            {
+                const DATA: &[u8] = include_bytes!($path);
+                let size_str = format_size(DATA.len());
+                let bench_name = format!("{} ({})", $name, size_str);
+
+                // Setup: decode to BencodexValue
+                let value: BencodexValue = DATA.to_vec().decode()
+                    .expect(concat!("Failed to decode ", $path));
+
+                $group.throughput(Throughput::Bytes(DATA.len() as u64));
+                $group.bench_function(&bench_name, |b| {
+                    b.iter(|| {
+                        let json = bencodex::json::to_json(black_box(&value))
+                            .expect("JSON encode failed");
+                        black_box(json)
+                    })
+                });
+            }
+        )*
+    };
+}
+
 pub fn encode_primitives(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode_primitives");
 
@@ -68,12 +94,29 @@ pub fn encode_files(c: &mut Criterion) {
     bench_encode_files!(group,
         "ncavatar_1" => "../_data/ncavatar_1.bin",
         "ncinventory_1" => "../_data/ncinventory_1.bin",
-        // Add new files here:
-        // "new_file" => "../_data/new_file.bin",
+        "large_random_0" => "../_data/large_random_0.bin",
     );
 
     group.finish();
 }
 
+#[cfg(feature = "json")]
+pub fn encode_to_json(c: &mut Criterion) {
+    let mut group = c.benchmark_group("encode_to_json");
+
+    bench_to_json_files!(group,
+        "ncavatar_1" => "../_data/ncavatar_1.bin",
+        "ncinventory_1" => "../_data/ncinventory_1.bin",
+        "large_random_0" => "../_data/large_random_0.bin",
+    );
+
+    group.finish();
+}
+
+#[cfg(feature = "json")]
+criterion_group!(benches, encode_primitives, encode_files, encode_to_json);
+
+#[cfg(not(feature = "json"))]
 criterion_group!(benches, encode_primitives, encode_files);
+
 criterion_main!(benches);
