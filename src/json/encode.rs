@@ -1,4 +1,5 @@
 use base64::Engine;
+use num_traits::ToPrimitive;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 use crate::{BencodexKey, BencodexValue};
@@ -34,7 +35,16 @@ where
     match value {
         BencodexValue::Null => serializer.serialize_none(),
         BencodexValue::Boolean(b) => serializer.serialize_bool(*b),
-        BencodexValue::Number(n) => serializer.serialize_str(&n.to_string()),
+        BencodexValue::Number(n) => {
+            // Use itoa for small numbers (i64 range) for faster serialization
+            if let Some(small) = n.to_i64() {
+                let mut buf = itoa::Buffer::new();
+                serializer.serialize_str(buf.format(small))
+            } else {
+                // Large numbers fall back to BigInt::to_string()
+                serializer.serialize_str(&n.to_string())
+            }
+        }
         BencodexValue::Binary(data) => {
             serializer.serialize_str(&format_binary(data, options.binary_encoding))
         }
@@ -75,7 +85,14 @@ fn format_binary(data: &[u8], encoding: BinaryEncoding) -> String {
                 base64::engine::general_purpose::STANDARD.encode(data)
             )
         }
-        BinaryEncoding::Hex => format!("0x{}", hex::encode(data)),
+        BinaryEncoding::Hex => {
+            let mut buf = vec![0u8; data.len() * 2 + 2];
+            buf[0] = b'0';
+            buf[1] = b'x';
+            faster_hex::hex_encode(data, &mut buf[2..]).expect("buffer size is correct");
+            // SAFETY: hex_encode produces valid ASCII (0-9, a-f)
+            unsafe { String::from_utf8_unchecked(buf) }
+        }
     }
 }
 

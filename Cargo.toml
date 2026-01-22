@@ -23,7 +23,7 @@ required-features = ["json-cli"]
 default = ["std"]
 std = ["alloc", "itertools/use_std", "num-bigint/std", "num-traits/std"]
 alloc = ["itertools/use_alloc"]
-json = ["std", "serde", "serde_json", "hex/std", "base64/std"]
+json = ["std", "serde", "serde_json", "hex/std", "base64/std", "faster-hex"]
 json-cli = ["json", "clap"]
 test = ["base64"]
 simd = ["std"]                    # SIMD (runtime CPU detection)
@@ -36,6 +36,7 @@ itoa = "1"
 num-traits = { version = "0.2.19", default-features = false }
 num-bigint = { version = "0.4.6", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"], optional = true }
+faster-hex = { version = "0.10", optional = true }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"], optional = true }
 clap = { version = "4.5.8", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
