@@ -36,13 +36,17 @@ fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
         BencodexValue::Binary(data) => Value::String(format_binary(data, options.binary_encoding)),
         BencodexValue::Text(text) => Value::String(format_text(text)),
         BencodexValue::List(items) => {
-            Value::Array(items.iter().map(|v| encode_value(v, options)).collect())
+            let mut ret = Vec::with_capacity(items.len());
+            for item in items {
+                ret.push(encode_value(item, options));
+            }
+            Value::Array(ret)
         }
         BencodexValue::Dictionary(map) => {
-            let obj: Map<String, Value> = map
-                .iter()
-                .map(|(k, v)| (format_key(k, options), encode_value(v, options)))
-                .collect();
+            let mut obj = Map::with_capacity(map.len());
+            for (k, v) in map {
+                obj.insert(format_key(k, options), encode_value(v, options));
+            }
             Value::Object(obj)
         }
     }
