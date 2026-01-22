@@ -53,7 +53,11 @@ macro_rules! bench_to_json_files {
 
                 $group.throughput(Throughput::Bytes(DATA.len() as u64));
                 $group.bench_function(&bench_name, |b| {
-                    b.iter(|| bencodex::json::to_json(black_box(&value)))
+                    b.iter(|| {
+                        let json = bencodex::json::to_json(black_box(&value))
+                            .expect("JSON encode failed");
+                        black_box(json)
+                    })
                 });
             }
         )*
