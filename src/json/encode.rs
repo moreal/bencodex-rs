@@ -1,6 +1,5 @@
 use base64::Engine;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
-use serde_json::{Map, Value};
 
 use crate::{BencodexKey, BencodexValue};
 
@@ -83,30 +82,6 @@ fn format_binary(data: &[u8], encoding: BinaryEncoding) -> String {
 #[inline(always)]
 fn format_text(text: &str) -> String {
     format!("\u{FEFF}{}", text)
-}
-
-fn encode_value(value: &BencodexValue, options: &JsonEncodeOptions) -> Value {
-    match value {
-        BencodexValue::Null => Value::Null,
-        BencodexValue::Boolean(b) => Value::Bool(*b),
-        BencodexValue::Number(n) => Value::String(n.to_string()),
-        BencodexValue::Binary(data) => Value::String(format_binary(data, options.binary_encoding)),
-        BencodexValue::Text(text) => Value::String(format_text(text)),
-        BencodexValue::List(items) => {
-            let mut ret = Vec::with_capacity(items.len());
-            for item in items {
-                ret.push(encode_value(item, options));
-            }
-            Value::Array(ret)
-        }
-        BencodexValue::Dictionary(map) => {
-            let mut obj = Map::with_capacity(map.len());
-            for (k, v) in map {
-                obj.insert(format_key(k, options), encode_value(v, options));
-            }
-            Value::Object(obj)
-        }
-    }
 }
 
 /// An enum type to choose how to encode Bencodex binary type when encoding to JSON.
