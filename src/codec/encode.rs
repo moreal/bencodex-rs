@@ -1,9 +1,7 @@
 use super::types::*;
 use crate::io::{Error as IoError, Write};
 use crate::prelude::*;
-use core::cmp::Ordering;
 use core::result::Result;
-use itertools::Itertools;
 use num_bigint::BigInt;
 
 /// `Encode` is a trait to encode a [Bencodex] value.
@@ -172,27 +170,6 @@ impl Encode for BencodexValue {
     }
 }
 
-fn compare_vector<T: Ord>(xs: &[T], ys: &[T]) -> Ordering {
-    for (x, y) in xs.iter().zip(ys) {
-        match x.cmp(y) {
-            Ordering::Equal => continue,
-            Ordering::Greater => return Ordering::Greater,
-            Ordering::Less => return Ordering::Less,
-        };
-    }
-
-    xs.len().cmp(&ys.len())
-}
-
-fn compare_key(x: &BencodexKey, y: &BencodexKey) -> Ordering {
-    match (x, y) {
-        (BencodexKey::Text(x), BencodexKey::Text(y)) => compare_vector(x.as_bytes(), y.as_bytes()),
-        (BencodexKey::Binary(x), BencodexKey::Binary(y)) => compare_vector(x, y),
-        (BencodexKey::Text(_), BencodexKey::Binary(_)) => Ordering::Greater,
-        (BencodexKey::Binary(_), BencodexKey::Text(_)) => Ordering::Less,
-    }
-}
-
 impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     /// ```
     /// use bencodex::{ Encode, BencodexKey, BencodexValue };
@@ -207,12 +184,8 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     /// assert_eq!(buf, b"du0:u0:e")
     /// ```
     fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
-        let pairs = self
-            .into_iter()
-            .sorted_by(|(x, _), (y, _)| compare_key(x, y));
-
         writer.write_all(b"d")?;
-        for (key, value) in pairs {
+        for (key, value) in self {
             let key = match key {
                 BencodexKey::Binary(x) => BencodexValue::Binary(x),
                 BencodexKey::Text(x) => BencodexValue::Text(x),
@@ -229,79 +202,6 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
 
 #[cfg(test)]
 mod tests {
-    mod compare_key {
-        use super::super::*;
-
-        #[test]
-        fn should_return_equal() {
-            assert_eq!(
-                Ordering::Equal,
-                compare_key(
-                    &BencodexKey::Text("foo".to_string()),
-                    &BencodexKey::Text("foo".to_string())
-                )
-            );
-            assert_eq!(
-                Ordering::Equal,
-                compare_key(
-                    &BencodexKey::Binary(b"bar".to_vec()),
-                    &BencodexKey::Binary(b"bar".to_vec())
-                )
-            );
-        }
-
-        #[test]
-        fn should_return_greater() {
-            assert_eq!(
-                Ordering::Greater,
-                compare_key(
-                    &BencodexKey::Text("".to_string()),
-                    &BencodexKey::Binary(b"".to_vec())
-                )
-            );
-        }
-
-        #[test]
-        fn should_return_less() {
-            assert_eq!(
-                Ordering::Less,
-                compare_key(
-                    &BencodexKey::Binary(b"".to_vec()),
-                    &BencodexKey::Text("".to_string())
-                )
-            );
-        }
-    }
-
-    mod compare_vector {
-        use super::super::*;
-
-        #[test]
-        fn should_return_equal() {
-            assert_eq!(
-                Ordering::Equal,
-                compare_vector(&Vec::<u8>::new(), &Vec::<u8>::new())
-            );
-            assert_eq!(Ordering::Equal, compare_vector(&[1, 2, 3], &[1, 2, 3]));
-        }
-
-        #[test]
-        fn should_return_less() {
-            assert_eq!(Ordering::Less, compare_vector(&[], &[3]));
-            assert_eq!(Ordering::Less, compare_vector(&[0], &[1, 2, 3]));
-            assert_eq!(Ordering::Less, compare_vector(&[1], &[9, 1, 1]));
-            assert_eq!(Ordering::Less, compare_vector(&[1, 2], &[1, 2, 3]));
-            assert_eq!(Ordering::Less, compare_vector(&[1, 9, 9], &[9, 1, 1]));
-        }
-
-        #[test]
-        fn should_return_greater() {
-            assert_eq!(Ordering::Greater, compare_vector(&[9], &[]));
-            assert_eq!(Ordering::Greater, compare_vector(&[9], &[1, 2, 3]));
-            assert_eq!(Ordering::Greater, compare_vector(&[1, 9, 2], &[1, 2, 2]));
-        }
-    }
-
     mod encode {
         mod btree_map {
             use super::super::super::*;
