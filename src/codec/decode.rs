@@ -344,18 +344,17 @@ fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
         // Fast-path: small numbers that fit in i64 (up to 19 digits)
         // i64 max is 9,223,372,036,854,775,807 (19 digits)
         let digit_count = if is_negative { size - 1 } else { size };
+        // SAFETY: The loop above only advances `size` for bytes matching b'0'..=b'9',
+        // and s[0] is checked for b'-'. These are all single-byte ASCII, which is valid UTF-8.
+        let str_slice = unsafe { core::str::from_utf8_unchecked(&s[..size]) };
         if digit_count <= 18
-            && let Ok(str_slice) = core::str::from_utf8(&s[..size])
             && let Ok(n) = str_slice.parse::<i64>()
         {
             // Safe to parse as i64 (18 digits is always within i64 range)
             return Some((BigInt::from(n), size));
         }
         // Large numbers or parsing edge cases: use BigInt directly
-        Some((
-            BigInt::from_str(core::str::from_utf8(&s[..size]).unwrap()).unwrap(),
-            size,
-        ))
+        Some((BigInt::from_str(str_slice).unwrap(), size))
     }
 }
 
