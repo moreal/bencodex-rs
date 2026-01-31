@@ -1,7 +1,6 @@
 use std::result::Result;
 
 use base64::Engine;
-use itertools::Itertools;
 use serde_json::Value;
 
 use crate::{BencodexDictionary, BencodexKey, BencodexValue};
@@ -66,7 +65,7 @@ pub fn from_json(value: &Value) -> Result<BencodexValue, JsonDecodeError> {
         Value::Bool(b) => Ok(BencodexValue::Boolean(*b)),
         Value::Number(_) => Err(JsonDecodeError::InvalidJson),
         Value::Array(arr) => Ok(BencodexValue::List(
-            arr.iter().map(from_json).try_collect()?,
+            arr.iter().map(from_json).collect::<Result<Vec<_>, _>>()?,
         )),
         Value::Object(obj) => {
             let mut map = BencodexDictionary::new();
