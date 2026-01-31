@@ -6,7 +6,6 @@ use core::result::Result;
 use core::str;
 use core::str::FromStr;
 use num_bigint::BigInt;
-use num_traits::ToPrimitive;
 
 /// The error type which is returned from decoding a Bencodex value through [`Decode::decode`].
 #[derive(Debug, PartialEq)]
@@ -202,7 +201,7 @@ fn decode_byte_string_impl(
     start: usize,
 ) -> Result<(BencodexValue, usize), DecodeError> {
     let mut tsize: usize = 0;
-    let (length, size) = match read_number(&vector[start + tsize..]) {
+    let (length, size) = match read_length(&vector[start + tsize..]) {
         None => return Err(DecodeError::InvalidBencodexValueError),
         Some(v) => v,
     };
@@ -214,13 +213,12 @@ fn decode_byte_string_impl(
         .should_not_be_none()?
         .expect(b':', index)?;
     tsize += 1;
-    let length_size = length.to_usize().unwrap();
-    if vector.len() < start + tsize + length_size {
+    if vector.len() < start + tsize + length {
         return Err(DecodeError::InvalidBencodexValueError);
     }
     Ok((
-        BencodexValue::Binary(vector[start + tsize..start + tsize + length_size].to_vec()),
-        tsize + length_size,
+        BencodexValue::Binary(vector[start + tsize..start + tsize + length].to_vec()),
+        tsize + length,
     ))
 }
 
@@ -238,16 +236,15 @@ fn decode_unicode_string_impl(
     if vector.len() < start + tsize + 1 {
         return Err(DecodeError::InvalidBencodexValueError);
     }
-    let (length, size) = match read_number(&vector[start + tsize..]) {
-        None => return Err(DecodeError::InvalidBencodexValueError),
+    let (length, size) = match read_length(&vector[start + tsize..]) {
+        None => {
+            return Err(DecodeError::UnexpectedTokenError {
+                token: vector[start + tsize],
+                point: start + tsize,
+            });
+        }
         Some(v) => v,
     };
-    if length < BigInt::from(0) {
-        return Err(DecodeError::UnexpectedTokenError {
-            token: vector[start + tsize],
-            point: start + tsize,
-        });
-    }
     tsize += size;
 
     let index = start + tsize;
@@ -257,15 +254,14 @@ fn decode_unicode_string_impl(
         .expect(b':', index)?;
     tsize += 1;
 
-    let length_size = length.to_usize().unwrap();
-    if vector.len() < start + tsize + length_size {
+    if vector.len() < start + tsize + length {
         return Err(DecodeError::InvalidBencodexValueError);
     }
-    let text = match str::from_utf8(&vector[start + tsize..start + tsize + length_size]) {
+    let text = match str::from_utf8(&vector[start + tsize..start + tsize + length]) {
         Ok(v) => v,
         Err(_) => return Err(DecodeError::InvalidBencodexValueError),
     };
-    tsize += length_size;
+    tsize += length;
     Ok((BencodexValue::Text(text.to_string()), tsize))
 }
 
@@ -293,6 +289,32 @@ fn decode_number_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usi
         .expect(b'e', index)?;
     tsize += 1;
     Ok((BencodexValue::Number(number), tsize))
+}
+
+/// Parses a non-negative decimal integer from `s` directly into `usize`.
+/// Returns `(value, bytes_consumed)` or `None` if the input is empty,
+/// starts with `-`, or contains no digits.
+#[inline]
+fn read_length(s: &[u8]) -> Option<(usize, usize)> {
+    if s.is_empty() || s[0] == b'-' {
+        return None;
+    }
+
+    let mut size: usize = 0;
+    let mut value: usize = 0;
+    while size < s.len() {
+        match s[size] {
+            b'0'..=b'9' => {
+                value = value
+                    .checked_mul(10)?
+                    .checked_add((s[size] - b'0') as usize)?;
+                size += 1;
+            }
+            _ => break,
+        }
+    }
+
+    if size == 0 { None } else { Some((value, size)) }
 }
 
 fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
@@ -509,7 +531,10 @@ mod tests {
                 decode_unicode_string_impl(b"u2:a", 0).unwrap_err()
             );
             assert_eq!(
-                expected_error,
+                DecodeError::UnexpectedTokenError {
+                    token: b'k',
+                    point: 1,
+                },
                 decode_unicode_string_impl(b"uk", 0).unwrap_err()
             );
             assert_eq!(
