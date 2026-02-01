@@ -30,6 +30,24 @@ macro_rules! bench_decode_files {
     };
 }
 
+/// Macro for easily adding benchmark data files (borrowed / zero-copy)
+macro_rules! bench_decode_files_borrowed {
+    ($group:expr, $( $name:literal => $path:literal ),* $(,)?) => {
+        $(
+            {
+                const DATA: &[u8] = include_bytes!($path);
+                let size_str = format_size(DATA.len());
+                let bench_name = format!("{} ({})", $name, size_str);
+
+                $group.throughput(Throughput::Bytes(DATA.len() as u64));
+                $group.bench_function(&bench_name, |b| {
+                    b.iter(|| bencodex::decode_borrowed(black_box(DATA)))
+                });
+            }
+        )*
+    };
+}
+
 /// Macro for easily adding benchmark data files (SIMD)
 #[cfg(feature = "simd")]
 macro_rules! bench_decode_files_simd {
@@ -42,7 +60,7 @@ macro_rules! bench_decode_files_simd {
 
                 $group.throughput(Throughput::Bytes(DATA.len() as u64));
                 $group.bench_function(&bench_name, |b| {
-                    b.iter(|| black_box(DATA.to_vec()).decode_simd())
+                    b.iter(|| bencodex::simd::decode_simd(black_box(DATA)))
                 });
             }
         )*
@@ -53,6 +71,18 @@ pub fn decode_scalar(c: &mut Criterion) {
     let mut group = c.benchmark_group("decode_scalar");
 
     bench_decode_files!(group,
+        "ncavatar_1" => "../_data/ncavatar_1.bin",
+        "ncinventory_1" => "../_data/ncinventory_1.bin",
+        "large_random_0" => "../_data/large_random_0.bin",
+    );
+
+    group.finish();
+}
+
+pub fn decode_borrowed(c: &mut Criterion) {
+    let mut group = c.benchmark_group("decode_borrowed");
+
+    bench_decode_files_borrowed!(group,
         "ncavatar_1" => "../_data/ncavatar_1.bin",
         "ncinventory_1" => "../_data/ncinventory_1.bin",
         "large_random_0" => "../_data/large_random_0.bin",
@@ -75,9 +105,9 @@ pub fn decode_simd(c: &mut Criterion) {
 }
 
 #[cfg(feature = "simd")]
-criterion_group!(benches, decode_scalar, decode_simd);
+criterion_group!(benches, decode_scalar, decode_borrowed, decode_simd);
 
 #[cfg(not(feature = "simd"))]
-criterion_group!(benches, decode_scalar);
+criterion_group!(benches, decode_scalar, decode_borrowed);
 
 criterion_main!(benches);

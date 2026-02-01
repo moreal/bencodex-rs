@@ -30,7 +30,7 @@ macro_rules! bench_encode_files {
                 $group.bench_function(&bench_name, |b| {
                     b.iter(|| {
                         let mut buf = Vec::with_capacity(DATA.len());
-                        black_box(value.clone()).encode(&mut buf)
+                        black_box(&value).encode(&mut buf)
                     })
                 });
             }
@@ -68,21 +68,24 @@ pub fn encode_primitives(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode_primitives");
 
     group.bench_function("null", |b| {
+        let null = BencodexValue::Null;
         let mut buf = Vec::new();
-        b.iter(|| black_box(BencodexValue::Null).encode(&mut buf));
+        b.iter(|| black_box(&null).encode(&mut buf));
     });
     group.bench_function("bigint (9223372036854775807)", |b| {
         let mut buf = Vec::new();
         let bigint = BencodexValue::Number(BigInt::from(9223372036854775807i64));
-        b.iter(|| black_box(bigint.clone()).encode(&mut buf));
+        b.iter(|| black_box(&bigint).encode(&mut buf));
     });
     group.bench_function("boolean (true)", |b| {
+        let val = BencodexValue::Boolean(true);
         let mut buf = Vec::new();
-        b.iter(|| black_box(BencodexValue::Boolean(true)).encode(&mut buf));
+        b.iter(|| black_box(&val).encode(&mut buf));
     });
     group.bench_function("boolean (false)", |b| {
+        let val = BencodexValue::Boolean(false);
         let mut buf = Vec::new();
-        b.iter(|| black_box(BencodexValue::Boolean(false)).encode(&mut buf));
+        b.iter(|| black_box(&val).encode(&mut buf));
     });
 
     group.finish();

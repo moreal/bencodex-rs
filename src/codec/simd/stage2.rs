@@ -16,17 +16,17 @@ use super::structural::StructuralIndex;
 ///
 /// Uses a pre-built structural index to parse values more efficiently
 /// by jumping directly to structural character positions.
-pub struct SimdParser<'a> {
+pub struct SimdParser<'a, 's> {
     input: &'a [u8],
-    structural: &'a StructuralIndex,
+    structural: &'s StructuralIndex,
     pos: usize,
     /// Cursor into structural index for efficient lookups
     struct_idx: usize,
 }
 
-impl<'a> SimdParser<'a> {
+impl<'a, 's> SimdParser<'a, 's> {
     /// Create a new SIMD parser with the given input and structural index.
-    pub fn new(input: &'a [u8], structural: &'a StructuralIndex) -> Self {
+    pub fn new(input: &'a [u8], structural: &'s StructuralIndex) -> Self {
         Self {
             input,
             structural,
@@ -36,12 +36,12 @@ impl<'a> SimdParser<'a> {
     }
 
     /// Parse a complete Bencodex value from the input.
-    pub fn parse(&mut self) -> Result<BencodexValue, DecodeError> {
+    pub fn parse(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.parse_value()
     }
 
     /// Parse a single value at the current position.
-    fn parse_value(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_value(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         if self.pos >= self.input.len() {
             return Err(DecodeError::InvalidBencodexValueError);
         }
@@ -72,7 +72,7 @@ impl<'a> SimdParser<'a> {
     }
 
     /// Parse a dictionary: d...e
-    fn parse_dict(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_dict(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.expect(b'd')?;
         self.pos += 1;
 
@@ -100,7 +100,7 @@ impl<'a> SimdParser<'a> {
     }
 
     /// Parse a list: l...e
-    fn parse_list(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_list(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.expect(b'l')?;
         self.pos += 1;
 
@@ -118,7 +118,7 @@ impl<'a> SimdParser<'a> {
     }
 
     /// Parse a byte string: length:data
-    fn parse_byte_string(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_byte_string(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         // Find ':' using structural index
         let colon_pos = self
             .find_next_structural(b':')
@@ -139,14 +139,14 @@ impl<'a> SimdParser<'a> {
             return Err(DecodeError::InvalidBencodexValueError);
         }
 
-        let data = self.input[self.pos..self.pos + length].to_vec();
+        let data = &self.input[self.pos..self.pos + length];
         self.pos += length;
 
-        Ok(BencodexValue::Binary(data))
+        Ok(BencodexValue::Binary(Cow::Borrowed(data)))
     }
 
     /// Parse a unicode string: ulength:data
-    fn parse_unicode_string(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_unicode_string(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.expect(b'u')?;
         self.pos += 1;
 
@@ -175,15 +175,14 @@ impl<'a> SimdParser<'a> {
         }
 
         let text = str::from_utf8(&self.input[self.pos..self.pos + length])
-            .map_err(|_| DecodeError::InvalidBencodexValueError)?
-            .to_string();
+            .map_err(|_| DecodeError::InvalidBencodexValueError)?;
         self.pos += length;
 
-        Ok(BencodexValue::Text(text))
+        Ok(BencodexValue::Text(Cow::Borrowed(text)))
     }
 
     /// Parse an integer: i...e
-    fn parse_integer(&mut self) -> Result<BencodexValue, DecodeError> {
+    fn parse_integer(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.expect(b'i')?;
         self.pos += 1;
 
@@ -258,7 +257,7 @@ mod tests {
     use super::*;
     use crate::codec::simd::stage1::build_structural_index;
 
-    fn parse(input: &[u8]) -> Result<BencodexValue, DecodeError> {
+    fn parse(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
         let index = build_structural_index(input);
         let mut parser = SimdParser::new(input, &index);
         parser.parse()
@@ -299,18 +298,24 @@ mod tests {
     fn test_parse_byte_string() {
         assert_eq!(
             parse(b"5:hello").unwrap(),
-            BencodexValue::Binary(b"hello".to_vec())
+            BencodexValue::Binary(Cow::Borrowed(b"hello".as_slice()))
         );
-        assert_eq!(parse(b"0:").unwrap(), BencodexValue::Binary(Vec::new()));
+        assert_eq!(
+            parse(b"0:").unwrap(),
+            BencodexValue::Binary(Cow::Borrowed(&[]))
+        );
     }
 
     #[test]
     fn test_parse_unicode_string() {
         assert_eq!(
             parse(b"u5:hello").unwrap(),
-            BencodexValue::Text("hello".to_string())
+            BencodexValue::Text(Cow::Borrowed("hello"))
         );
-        assert_eq!(parse(b"u0:").unwrap(), BencodexValue::Text(String::new()));
+        assert_eq!(
+            parse(b"u0:").unwrap(),
+            BencodexValue::Text(Cow::Borrowed(""))
+        );
     }
 
     #[test]
@@ -321,7 +326,7 @@ mod tests {
         if let BencodexValue::List(items) = result {
             assert_eq!(items.len(), 2);
             assert_eq!(items[0], BencodexValue::Number(BigInt::from(42)));
-            assert_eq!(items[1], BencodexValue::Text("hello".to_string()));
+            assert_eq!(items[1], BencodexValue::Text(Cow::Borrowed("hello")));
         } else {
             panic!("Expected list");
         }
@@ -338,7 +343,7 @@ mod tests {
         if let BencodexValue::Dictionary(map) = result {
             assert_eq!(map.len(), 1);
             assert_eq!(
-                map.get(&BencodexKey::Text("a".to_string())),
+                map.get(&BencodexKey::Text(Cow::Borrowed("a"))),
                 Some(&BencodexValue::Number(BigInt::from(42)))
             );
         } else {

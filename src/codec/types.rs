@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use num_bigint::BigInt;
 
-/// The type alias of `BTreepMap<BencodexKey, BencodexValue>` to reduce code size.
+/// The type alias of `BTreeMap<BencodexKey, BencodexValue>` to reduce code size.
 ///
 /// ```
 /// use bencodex::{ Encode, BencodexDictionary };
@@ -13,7 +13,7 @@ use num_bigint::BigInt;
 /// dict.encode(&mut buf);
 /// assert_eq!(buf, b"du3:foou3:bare")
 /// ```
-pub type BencodexDictionary = BTreeMap<BencodexKey, BencodexValue>;
+pub type BencodexDictionary<'a> = BTreeMap<BencodexKey<'a>, BencodexValue<'a>>;
 /// The type alias of `Vec<BencodexValue>` to reduce code size.
 ///
 /// ```
@@ -27,7 +27,7 @@ pub type BencodexDictionary = BTreeMap<BencodexKey, BencodexValue>;
 /// list.encode(&mut buf);
 /// assert_eq!(buf, b"lu3:foou3:bare")
 /// ```
-pub type BencodexList = Vec<BencodexValue>;
+pub type BencodexList<'a> = Vec<BencodexValue<'a>>;
 
 /// The constant of `BencodexValue::Null`.
 ///
@@ -38,88 +38,107 @@ pub type BencodexList = Vec<BencodexValue>;
 /// BENCODEX_NULL.encode(&mut buf);
 /// assert_eq!(buf, b"n")
 /// ```
-pub const BENCODEX_NULL: BencodexValue = BencodexValue::Null;
+pub const BENCODEX_NULL: BencodexValue<'static> = BencodexValue::Null;
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum BencodexValue {
-    Binary(Vec<u8>),
-    Text(String),
+pub enum BencodexValue<'a> {
+    Binary(Cow<'a, [u8]>),
+    Text(Cow<'a, str>),
     Boolean(bool),
     Number(BigInt),
-    List(BencodexList),
-    Dictionary(BencodexDictionary),
+    List(BencodexList<'a>),
+    Dictionary(BencodexDictionary<'a>),
     Null,
 }
 
 #[derive(PartialEq, Eq, Debug, PartialOrd, Clone, Ord)]
-pub enum BencodexKey {
-    Binary(Vec<u8>),
-    Text(String),
+pub enum BencodexKey<'a> {
+    Binary(Cow<'a, [u8]>),
+    Text(Cow<'a, str>),
 }
 
-impl From<&str> for BencodexKey {
-    fn from(val: &str) -> Self {
-        BencodexKey::Text(val.to_string())
+impl<'a> BencodexValue<'a> {
+    /// Convert a borrowed `BencodexValue` into a fully owned one with `'static` lifetime.
+    pub fn into_owned(self) -> BencodexValue<'static> {
+        match self {
+            BencodexValue::Binary(cow) => BencodexValue::Binary(Cow::Owned(cow.into_owned())),
+            BencodexValue::Text(cow) => BencodexValue::Text(Cow::Owned(cow.into_owned())),
+            BencodexValue::Boolean(b) => BencodexValue::Boolean(b),
+            BencodexValue::Number(n) => BencodexValue::Number(n),
+            BencodexValue::List(list) => {
+                BencodexValue::List(list.into_iter().map(|v| v.into_owned()).collect())
+            }
+            BencodexValue::Dictionary(dict) => BencodexValue::Dictionary(
+                dict.into_iter()
+                    .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                    .collect(),
+            ),
+            BencodexValue::Null => BencodexValue::Null,
+        }
     }
 }
 
-impl From<String> for BencodexKey {
+impl<'a> BencodexKey<'a> {
+    /// Convert a borrowed `BencodexKey` into a fully owned one with `'static` lifetime.
+    pub fn into_owned(self) -> BencodexKey<'static> {
+        match self {
+            BencodexKey::Binary(cow) => BencodexKey::Binary(Cow::Owned(cow.into_owned())),
+            BencodexKey::Text(cow) => BencodexKey::Text(Cow::Owned(cow.into_owned())),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for BencodexKey<'a> {
+    fn from(val: &'a str) -> Self {
+        BencodexKey::Text(Cow::Borrowed(val))
+    }
+}
+
+impl From<String> for BencodexKey<'_> {
     fn from(val: String) -> Self {
-        BencodexKey::Text(val)
+        BencodexKey::Text(Cow::Owned(val))
     }
 }
 
-impl From<&String> for BencodexKey {
-    fn from(val: &String) -> Self {
-        BencodexKey::Text(val.clone())
-    }
-}
-
-impl From<Vec<u8>> for BencodexKey {
+impl From<Vec<u8>> for BencodexKey<'_> {
     fn from(val: Vec<u8>) -> Self {
-        BencodexKey::Binary(val)
+        BencodexKey::Binary(Cow::Owned(val))
     }
 }
 
-impl From<&Vec<u8>> for BencodexKey {
-    fn from(val: &Vec<u8>) -> Self {
-        BencodexKey::Binary(val.clone())
+impl<'a> From<&'a [u8]> for BencodexKey<'a> {
+    fn from(val: &'a [u8]) -> Self {
+        BencodexKey::Binary(Cow::Borrowed(val))
     }
 }
 
-impl From<&[u8]> for BencodexKey {
-    fn from(val: &[u8]) -> Self {
-        BencodexKey::Binary(val.to_vec())
+impl<'a> From<&'a [u8]> for BencodexValue<'a> {
+    fn from(val: &'a [u8]) -> Self {
+        BencodexValue::Binary(Cow::Borrowed(val))
     }
 }
 
-impl From<&[u8]> for BencodexValue {
-    fn from(val: &[u8]) -> Self {
-        BencodexValue::Binary(val.to_vec())
-    }
-}
-
-impl From<Vec<u8>> for BencodexValue {
+impl From<Vec<u8>> for BencodexValue<'_> {
     fn from(val: Vec<u8>) -> Self {
-        BencodexValue::Binary(val)
+        BencodexValue::Binary(Cow::Owned(val))
     }
 }
 
-impl From<&str> for BencodexValue {
-    fn from(val: &str) -> Self {
-        BencodexValue::Text(val.to_string())
+impl<'a> From<&'a str> for BencodexValue<'a> {
+    fn from(val: &'a str) -> Self {
+        BencodexValue::Text(Cow::Borrowed(val))
     }
 }
 
-impl From<String> for BencodexValue {
+impl From<String> for BencodexValue<'_> {
     fn from(val: String) -> Self {
-        BencodexValue::Text(val)
+        BencodexValue::Text(Cow::Owned(val))
     }
 }
 
 macro_rules! bencodex_value_number_impl {
     ($x:tt) => {
-        impl From<$x> for BencodexValue {
+        impl From<$x> for BencodexValue<'_> {
             fn from(val: $x) -> Self {
                 BencodexValue::Number(val.into())
             }
@@ -135,15 +154,15 @@ bencodex_value_number_impl!(i16);
 bencodex_value_number_impl!(i32);
 bencodex_value_number_impl!(i64);
 
-impl From<bool> for BencodexValue {
+impl From<bool> for BencodexValue<'_> {
     fn from(val: bool) -> Self {
         BencodexValue::Boolean(val)
     }
 }
 
-impl<T> From<Vec<T>> for BencodexValue
+impl<'a, T> From<Vec<T>> for BencodexValue<'a>
 where
-    T: Into<BencodexValue>,
+    T: Into<BencodexValue<'a>>,
 {
     fn from(val: Vec<T>) -> Self {
         let mut vec = Vec::new();
@@ -155,13 +174,13 @@ where
     }
 }
 
-impl<T, U> From<BTreeMap<T, U>> for BencodexValue
+impl<'a, T, U> From<BTreeMap<T, U>> for BencodexValue<'a>
 where
-    T: Into<BencodexKey>,
-    U: Into<BencodexValue>,
+    T: Into<BencodexKey<'a>>,
+    U: Into<BencodexValue<'a>>,
 {
     fn from(val: BTreeMap<T, U>) -> Self {
-        let mut map = BTreeMap::<BencodexKey, BencodexValue>::new();
+        let mut map = BTreeMap::<BencodexKey<'a>, BencodexValue<'a>>::new();
         for (key, value) in val {
             map.insert(key.into(), value.into());
         }
@@ -182,38 +201,38 @@ mod tests {
         fn text() {
             let s: &str = "value";
             let value: BencodexKey = s.into();
-            assert_eq!(value, BencodexKey::Text("value".to_string()));
+            assert_eq!(value, BencodexKey::Text(Cow::Borrowed("value")));
 
             let s: String = "value".to_string();
             let value: BencodexKey = s.into();
-            assert_eq!(value, BencodexKey::Text("value".to_string()));
+            assert_eq!(value, BencodexKey::Text(Cow::Owned("value".to_string())));
 
             let s: &str = "value";
             let value: BencodexValue = s.into();
-            assert_eq!(value, BencodexValue::Text("value".to_string()));
+            assert_eq!(value, BencodexValue::Text(Cow::Borrowed("value")));
 
             let s: String = "value".to_string();
             let value: BencodexValue = s.into();
-            assert_eq!(value, BencodexValue::Text("value".to_string()));
+            assert_eq!(value, BencodexValue::Text(Cow::Owned("value".to_string())));
         }
 
         #[test]
         fn binary() {
             let b: &[u8] = &[0, 1, 2, 3];
             let value: BencodexKey = b.into();
-            assert_eq!(value, BencodexKey::Binary(vec![0, 1, 2, 3]));
+            assert_eq!(value, BencodexKey::Binary(Cow::Borrowed(&[0, 1, 2, 3])));
 
             let b: Vec<u8> = vec![0, 1, 2, 3];
             let value: BencodexKey = b.into();
-            assert_eq!(value, BencodexKey::Binary(vec![0, 1, 2, 3]));
+            assert_eq!(value, BencodexKey::Binary(Cow::Owned(vec![0, 1, 2, 3])));
 
             let b: &[u8] = &[0, 1, 2, 3];
             let value: BencodexValue = b.into();
-            assert_eq!(value, BencodexValue::Binary(vec![0, 1, 2, 3]));
+            assert_eq!(value, BencodexValue::Binary(Cow::Borrowed(&[0, 1, 2, 3])));
 
             let b: Vec<u8> = vec![0, 1, 2, 3];
             let value: BencodexValue = b.into();
-            assert_eq!(value, BencodexValue::Binary(vec![0, 1, 2, 3]));
+            assert_eq!(value, BencodexValue::Binary(Cow::Owned(vec![0, 1, 2, 3])));
         }
 
         #[test]
@@ -308,8 +327,8 @@ mod tests {
             let actual: BencodexValue = map.into();
 
             let expected = BencodexValue::Dictionary(BTreeMap::from_iter([(
-                BencodexKey::Text("foo".to_string()),
-                BencodexValue::Binary(vec![b'b', b'a', b'r']),
+                BencodexKey::Text(Cow::Owned("foo".to_string())),
+                BencodexValue::Binary(Cow::Borrowed(b"bar".as_slice())),
             )]));
 
             assert_eq!(actual, expected);

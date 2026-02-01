@@ -5,12 +5,12 @@ use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use crate::{BencodexKey, BencodexValue};
 
 struct BencodexJsonEncoder<'a> {
-    value: &'a BencodexValue,
+    value: &'a BencodexValue<'a>,
     options: JsonEncodeOptions,
 }
 
 impl<'a> BencodexJsonEncoder<'a> {
-    pub fn new(value: &'a BencodexValue, options: JsonEncodeOptions) -> Self {
+    pub fn new(value: &'a BencodexValue<'a>, options: JsonEncodeOptions) -> Self {
         Self { value, options }
     }
 }
@@ -25,7 +25,7 @@ impl Serialize for BencodexJsonEncoder<'_> {
 }
 
 fn serialize_value<S>(
-    value: &BencodexValue,
+    value: &BencodexValue<'_>,
     options: &JsonEncodeOptions,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
@@ -69,7 +69,7 @@ where
     }
 }
 
-fn format_key(key: &BencodexKey, options: &JsonEncodeOptions) -> String {
+fn format_key(key: &BencodexKey<'_>, options: &JsonEncodeOptions) -> String {
     match key {
         BencodexKey::Binary(data) => format_binary(data, options.binary_encoding),
         BencodexKey::Text(text) => format_text(text),
@@ -146,8 +146,7 @@ pub struct JsonEncodeOptions {
 }
 
 /// Encode Bencodex to JSON with default options.
-pub fn to_json(value: &BencodexValue) -> Result<String, serde_json::Error> {
-    // to_json_with_options(value, JsonEncodeOptions::default())
+pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
     serde_json::to_string(&BencodexJsonEncoder::new(
         value,
         JsonEncodeOptions::default(),
@@ -156,10 +155,8 @@ pub fn to_json(value: &BencodexValue) -> Result<String, serde_json::Error> {
 
 /// Encode Bencodex to JSON with the given options.
 pub fn to_json_with_options(
-    value: &BencodexValue,
+    value: &BencodexValue<'_>,
     options: JsonEncodeOptions,
 ) -> Result<String, serde_json::Error> {
-    // let json_value = encode_value(value, &options);
-    // serde_json::to_string(&json_value)
     serde_json::to_string(&BencodexJsonEncoder::new(value, options))
 }

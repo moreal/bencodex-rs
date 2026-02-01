@@ -3,6 +3,7 @@ use num_bigint::BigInt;
 use num_traits::cast::FromPrimitive;
 #[cfg(feature = "json")]
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs;
 use std::fs::DirEntry;
@@ -20,7 +21,7 @@ use bencodex::json::BinaryEncoding;
 
 #[derive(PartialEq, Debug)]
 pub struct Spec {
-    pub bvalue: BencodexValue,
+    pub bvalue: BencodexValue<'static>,
     pub encoded: Vec<u8>,
     pub name: String,
 }
@@ -42,11 +43,11 @@ impl Deref for SpecWithJson {
 static SPEC_PATH: &str = "spec/testsuite";
 
 struct TestsuiteYamlLoader {
-    docs: Vec<BencodexValue>,
+    docs: Vec<BencodexValue<'static>>,
     // states
     // (current node, anchor_id) tuple
-    key_stack: Vec<Option<BencodexKey>>,
-    doc_stack: Vec<(BencodexValue, usize)>,
+    key_stack: Vec<Option<BencodexKey<'static>>>,
+    doc_stack: Vec<(BencodexValue<'static>, usize)>,
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -93,19 +94,19 @@ impl MarkedEventReceiver for TestsuiteYamlLoader {
                                 Err(_) => unreachable!(),
                                 Ok(v) => BencodexValue::Number(BigInt::from_i64(v).unwrap()),
                             },
-                            "binary" => BencodexValue::Binary(
+                            "binary" => BencodexValue::Binary(Cow::Owned(
                                 base64::engine::general_purpose::STANDARD
                                     .decode(v.replace('\n', ""))
                                     .unwrap(),
-                            ),
+                            )),
                             "null" => match v.as_ref() {
                                 "~" | "null" => BencodexValue::Null,
                                 _ => unreachable!(),
                             },
-                            _ => BencodexValue::Text(v),
+                            _ => BencodexValue::Text(Cow::Owned(v)),
                         }
                     } else {
-                        BencodexValue::Text(v)
+                        BencodexValue::Text(Cow::Owned(v))
                     }
                 } else {
                     // Datatype is not specified, or unrecognized
@@ -116,7 +117,7 @@ impl MarkedEventReceiver for TestsuiteYamlLoader {
                     } else if v == "null" {
                         BencodexValue::Null
                     } else {
-                        BencodexValue::Text(v)
+                        BencodexValue::Text(Cow::Owned(v))
                     }
                 };
 
@@ -129,7 +130,7 @@ impl MarkedEventReceiver for TestsuiteYamlLoader {
 
 #[cfg(not(tarpaulin_include))]
 impl TestsuiteYamlLoader {
-    fn insert_new_node(&mut self, node: (BencodexValue, usize)) {
+    fn insert_new_node(&mut self, node: (BencodexValue<'static>, usize)) {
         if self.doc_stack.is_empty() {
             self.doc_stack.push(node);
         } else {
@@ -158,7 +159,7 @@ impl TestsuiteYamlLoader {
         }
     }
 
-    pub fn load_from_str(source: &str) -> Result<Vec<BencodexValue>, ScanError> {
+    pub fn load_from_str(source: &str) -> Result<Vec<BencodexValue<'static>>, ScanError> {
         let mut loader = TestsuiteYamlLoader {
             docs: Vec::new(),
             doc_stack: Vec::new(),
@@ -294,7 +295,7 @@ pub fn iter_spec() -> std::io::Result<Vec<Spec>> {
                     Err(why) => panic!("{}", why),
                 };
 
-                let bvalue: BencodexValue =
+                let bvalue: BencodexValue<'static> =
                     match TestsuiteYamlLoader::load_from_str(&content.to_string()) {
                         Ok(v) => v.first().unwrap().to_owned(),
                         Err(why) => panic!("{}", why),
@@ -351,7 +352,7 @@ pub fn iter_spec_with_json(
                     Err(why) => panic!("{}", why),
                 };
 
-                let bvalue: BencodexValue =
+                let bvalue: BencodexValue<'static> =
                     match TestsuiteYamlLoader::load_from_str(&content.to_string()) {
                         Ok(v) => v.first().unwrap().to_owned(),
                         Err(why) => panic!("{}", why),

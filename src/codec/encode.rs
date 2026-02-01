@@ -24,7 +24,7 @@ pub trait Encode {
     /// assert_eq!(vec, vec![b'u', b'4', b':', b't', b'e', b'x', b't']);
     /// ```
     /// [Bencodex]: https://bencodex.org/
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError>;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError>;
 }
 
 fn write_usize<W: Write>(writer: &mut W, n: usize) -> Result<(), IoError> {
@@ -43,14 +43,15 @@ impl Encode for Vec<u8> {
     /// ```
     /// use bencodex::{ Encode };
     ///
+    /// let buf_val = b"hello".to_vec();
     /// let mut buf = vec![];
-    /// b"hello".to_vec().encode(&mut buf);
+    /// buf_val.encode(&mut buf);
     /// assert_eq!(buf, b"5:hello");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         write_usize(writer, self.len())?;
         writer.write_all(b":")?;
-        writer.write_all(&self)?;
+        writer.write_all(self)?;
 
         Ok(())
     }
@@ -64,9 +65,9 @@ impl Encode for i64 {
     /// 1004i64.encode(&mut buf);
     /// assert_eq!(buf, b"i1004e");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"i")?;
-        write_i64(writer, self)?;
+        write_i64(writer, *self)?;
         writer.write_all(b"e")
     }
 }
@@ -79,12 +80,12 @@ impl Encode for String {
     /// "foo".to_string().encode(&mut buf);
     /// assert_eq!(buf, b"u3:foo");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
-        let bytes = self.into_bytes();
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        let bytes = self.as_bytes();
         writer.write_all(b"u")?;
         write_usize(writer, bytes.len())?;
         writer.write_all(b":")?;
-        writer.write_all(&bytes)?;
+        writer.write_all(bytes)?;
 
         Ok(())
     }
@@ -98,11 +99,8 @@ impl Encode for bool {
     /// true.encode(&mut buf);
     /// assert_eq!(buf, b"t");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
-        writer.write_all(match self {
-            true => b"t",
-            false => b"f",
-        })?;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        writer.write_all(if *self { b"t" } else { b"f" })?;
 
         Ok(())
     }
@@ -117,7 +115,7 @@ impl Encode for BigInt {
     /// BigInt::from(0).encode(&mut buf);
     /// assert_eq!(buf, b"i0e");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"i")?;
         writer.write_all(self.to_str_radix(10).as_bytes())?;
         writer.write_all(b"e")?;
@@ -126,7 +124,7 @@ impl Encode for BigInt {
     }
 }
 
-impl Encode for Vec<BencodexValue> {
+impl Encode for Vec<BencodexValue<'_>> {
     /// ```
     /// use bencodex::{ Encode, BencodexValue };
     /// use num_bigint::BigInt;
@@ -136,7 +134,7 @@ impl Encode for Vec<BencodexValue> {
     /// list.encode(&mut buf);
     /// assert_eq!(buf, b"li0ene");
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"l")?;
         for el in self {
             el.encode(writer)?;
@@ -153,12 +151,27 @@ fn encode_null<W: Write>(writer: &mut W) -> Result<(), IoError> {
     Ok(())
 }
 
-impl Encode for BencodexValue {
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
-        // FIXME: rewrite more beautiful.
+fn encode_binary<W: Write>(writer: &mut W, data: &[u8]) -> Result<(), IoError> {
+    write_usize(writer, data.len())?;
+    writer.write_all(b":")?;
+    writer.write_all(data)?;
+    Ok(())
+}
+
+fn encode_text<W: Write>(writer: &mut W, text: &str) -> Result<(), IoError> {
+    let bytes = text.as_bytes();
+    writer.write_all(b"u")?;
+    write_usize(writer, bytes.len())?;
+    writer.write_all(b":")?;
+    writer.write_all(bytes)?;
+    Ok(())
+}
+
+impl Encode for BencodexValue<'_> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         match self {
-            BencodexValue::Binary(x) => x.encode(writer)?,
-            BencodexValue::Text(x) => x.encode(writer)?,
+            BencodexValue::Binary(x) => encode_binary(writer, x)?,
+            BencodexValue::Text(x) => encode_text(writer, x)?,
             BencodexValue::Dictionary(x) => x.encode(writer)?,
             BencodexValue::List(x) => x.encode(writer)?,
             BencodexValue::Boolean(x) => x.encode(writer)?,
@@ -170,7 +183,7 @@ impl Encode for BencodexValue {
     }
 }
 
-impl Encode for BTreeMap<BencodexKey, BencodexValue> {
+impl Encode for BTreeMap<BencodexKey<'_>, BencodexValue<'_>> {
     /// ```
     /// use bencodex::{ Encode, BencodexKey, BencodexValue };
     /// use std::collections::BTreeMap;
@@ -183,15 +196,13 @@ impl Encode for BTreeMap<BencodexKey, BencodexValue> {
     ///
     /// assert_eq!(buf, b"du0:u0:e")
     /// ```
-    fn encode<W: Write>(self, writer: &mut W) -> Result<(), IoError> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"d")?;
         for (key, value) in self {
-            let key = match key {
-                BencodexKey::Binary(x) => BencodexValue::Binary(x),
-                BencodexKey::Text(x) => BencodexValue::Text(x),
-            };
-
-            key.encode(writer)?;
+            match key {
+                BencodexKey::Binary(x) => encode_binary(writer, x)?,
+                BencodexKey::Text(x) => encode_text(writer, x)?,
+            }
             value.encode(writer)?;
         }
         writer.write_all(b"e")?;
@@ -210,13 +221,25 @@ mod tests {
             #[test]
             fn should_order_keys() {
                 let mut bvalue: BTreeMap<BencodexKey, BencodexValue> = BTreeMap::new();
-                bvalue.insert(BencodexKey::Text("ua".to_string()), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Binary(vec![b'a']), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Text("ub".to_string()), BencodexValue::Null);
-                bvalue.insert(BencodexKey::Binary(vec![b'b']), BencodexValue::Null);
+                bvalue.insert(
+                    BencodexKey::Text(Cow::Owned("ua".to_string())),
+                    BencodexValue::Null,
+                );
+                bvalue.insert(
+                    BencodexKey::Binary(Cow::Owned(vec![b'a'])),
+                    BencodexValue::Null,
+                );
+                bvalue.insert(
+                    BencodexKey::Text(Cow::Owned("ub".to_string())),
+                    BencodexValue::Null,
+                );
+                bvalue.insert(
+                    BencodexKey::Binary(Cow::Owned(vec![b'b'])),
+                    BencodexValue::Null,
+                );
 
                 let mut writer = Vec::new();
-                assert!(bvalue.to_owned().encode(&mut writer).is_ok());
+                assert!(bvalue.encode(&mut writer).is_ok());
                 assert_eq!(b"d1:an1:bnu2:uanu2:ubne".to_vec(), writer);
             }
         }
@@ -273,19 +296,19 @@ mod tests {
 
                 // write length
                 let mut writer = ConditionFailWriter::new(vec![1]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write 'e'
                 let mut writer = ConditionFailWriter::new(vec![2]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write bytes
                 let mut writer = ConditionFailWriter::new(vec![3]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
             }
@@ -298,47 +321,50 @@ mod tests {
             #[test]
             fn should_pass_error() {
                 let mut bvalue: BTreeMap<BencodexKey, BencodexValue> = BTreeMap::new();
-                bvalue.insert(BencodexKey::Text("".to_string()), BencodexValue::Null);
+                bvalue.insert(
+                    BencodexKey::Text(Cow::Owned("".to_string())),
+                    BencodexValue::Null,
+                );
 
                 // write 'd'
                 let mut writer = ConditionFailWriter::new(vec![1]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write 'u' key prefix
                 let mut writer = ConditionFailWriter::new(vec![2]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write '{}' key bytes length
                 let mut writer = ConditionFailWriter::new(vec![3]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write ":" key delimeter
                 let mut writer = ConditionFailWriter::new(vec![4]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write "" key bytes
                 let mut writer = ConditionFailWriter::new(vec![5]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write value
                 let mut writer = ConditionFailWriter::new(vec![6]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write 'e'
                 let mut writer = ConditionFailWriter::new(vec![7]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
             }
@@ -350,24 +376,23 @@ mod tests {
 
             #[test]
             fn should_pass_error() {
-                let bvalue: &mut Vec<BencodexValue> = &mut Vec::new();
-                bvalue.push(BencodexValue::Null);
+                let bvalue: Vec<BencodexValue> = vec![BencodexValue::Null];
 
                 // write 'l'
                 let mut writer = ConditionFailWriter::new(vec![1]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write value
                 let mut writer = ConditionFailWriter::new(vec![2]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write 'e'
                 let mut writer = ConditionFailWriter::new(vec![3]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
             }
@@ -383,25 +408,25 @@ mod tests {
 
                 // write 'u'
                 let mut writer = ConditionFailWriter::new(vec![1]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write length
                 let mut writer = ConditionFailWriter::new(vec![2]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write ':'
                 let mut writer = ConditionFailWriter::new(vec![3]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write text
                 let mut writer = ConditionFailWriter::new(vec![4]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
             }
@@ -433,19 +458,19 @@ mod tests {
 
                 // write 'i'
                 let mut writer = ConditionFailWriter::new(vec![1]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write number
                 let mut writer = ConditionFailWriter::new(vec![2]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
 
                 // write 'e'
                 let mut writer = ConditionFailWriter::new(vec![3]);
-                let err = bvalue.to_owned().encode(&mut writer).unwrap_err();
+                let err = bvalue.encode(&mut writer).unwrap_err();
                 assert_eq!(std::io::ErrorKind::Other, err.kind());
                 assert_eq!("", err.to_string());
             }
