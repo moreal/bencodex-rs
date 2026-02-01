@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::result::Result;
 
 use base64::Engine;
@@ -16,17 +17,17 @@ pub enum JsonDecodeError {
     InvalidJson,
 }
 
-fn from_json_key_impl(s: &str) -> Result<BencodexKey, JsonDecodeError> {
+fn from_json_key_impl(s: &str) -> Result<BencodexKey<'static>, JsonDecodeError> {
     if let Some(rest) = s.strip_prefix("b64:") {
         let binary = base64::engine::general_purpose::STANDARD
             .decode(rest)
             .map_err(|_| JsonDecodeError::InvalidJson)?;
-        Ok(BencodexKey::Binary(binary))
+        Ok(BencodexKey::Binary(Cow::Owned(binary)))
     } else if let Some(rest) = s.strip_prefix("0x") {
         let binary = hex::decode(rest).map_err(|_| JsonDecodeError::InvalidJson)?;
-        Ok(BencodexKey::Binary(binary))
+        Ok(BencodexKey::Binary(Cow::Owned(binary)))
     } else if let Some(rest) = s.strip_prefix('\u{FEFF}') {
-        Ok(BencodexKey::Text(rest.to_string()))
+        Ok(BencodexKey::Text(Cow::Owned(rest.to_string())))
     } else {
         Err(JsonDecodeError::InvalidJson)
     }
@@ -59,7 +60,7 @@ fn from_json_key_impl(s: &str) -> Result<BencodexKey, JsonDecodeError> {
 /// assert!(result.is_err());
 /// assert_eq!(result.unwrap_err(), JsonDecodeError::InvalidJson);
 /// ```
-pub fn from_json(value: &Value) -> Result<BencodexValue, JsonDecodeError> {
+pub fn from_json(value: &Value) -> Result<BencodexValue<'static>, JsonDecodeError> {
     match value {
         Value::Null => Ok(BencodexValue::Null),
         Value::Bool(b) => Ok(BencodexValue::Boolean(*b)),
@@ -78,8 +79,8 @@ pub fn from_json(value: &Value) -> Result<BencodexValue, JsonDecodeError> {
         Value::String(s) => {
             if let Ok(key) = from_json_key_impl(s) {
                 Ok(match key {
-                    BencodexKey::Text(t) => BencodexValue::Text(t.to_owned()),
-                    BencodexKey::Binary(b) => BencodexValue::Binary(b.to_owned()),
+                    BencodexKey::Text(t) => BencodexValue::Text(t),
+                    BencodexKey::Binary(b) => BencodexValue::Binary(b),
                 })
             } else if s
                 .as_bytes()
@@ -130,7 +131,7 @@ pub fn from_json(value: &Value) -> Result<BencodexValue, JsonDecodeError> {
 /// assert!(result.is_err());
 /// assert_eq!(result.unwrap_err(), JsonDecodeError::InvalidJson);
 /// ```
-pub fn from_json_string(s: &str) -> Result<BencodexValue, JsonDecodeError> {
+pub fn from_json_string(s: &str) -> Result<BencodexValue<'static>, JsonDecodeError> {
     let json = serde_json::from_str(s).map_err(|_| JsonDecodeError::InvalidJsonString)?;
     from_json(&json)
 }

@@ -2,6 +2,7 @@ use bencodex::{BencodexDictionary, BencodexKey, BencodexList, BencodexValue, Enc
 use num_bigint::BigInt;
 use rand::distr::Alphanumeric;
 use rand::prelude::*;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
@@ -53,25 +54,25 @@ fn random_number(rng: &mut impl Rng) -> BigInt {
     BigInt::from_signed_bytes_le(&bytes)
 }
 
-fn random_key(rng: &mut impl Rng) -> BencodexKey {
+fn random_key(rng: &mut impl Rng) -> BencodexKey<'static> {
     if rng.random_bool(0.7) {
-        BencodexKey::Text(random_text(rng, 32))
+        BencodexKey::Text(Cow::Owned(random_text(rng, 32)))
     } else {
-        BencodexKey::Binary(random_binary(rng, 32))
+        BencodexKey::Binary(Cow::Owned(random_binary(rng, 32)))
     }
 }
 
-fn random_primitive(rng: &mut impl Rng) -> BencodexValue {
+fn random_primitive(rng: &mut impl Rng) -> BencodexValue<'static> {
     match rng.random_range(0..5) {
         0 => BencodexValue::Null,
         1 => BencodexValue::Boolean(rng.random()),
         2 => BencodexValue::Number(random_number(rng)),
-        3 => BencodexValue::Text(random_text(rng, 100)),
-        _ => BencodexValue::Binary(random_binary(rng, 1000)),
+        3 => BencodexValue::Text(Cow::Owned(random_text(rng, 100))),
+        _ => BencodexValue::Binary(Cow::Owned(random_binary(rng, 1000))),
     }
 }
 
-fn random_value(rng: &mut impl Rng, depth: usize) -> BencodexValue {
+fn random_value(rng: &mut impl Rng, depth: usize) -> BencodexValue<'static> {
     if depth >= MAX_DEPTH {
         return random_primitive(rng);
     }
@@ -93,17 +94,17 @@ fn random_value(rng: &mut impl Rng, depth: usize) -> BencodexValue {
     }
 }
 
-fn generate_large_value(rng: &mut impl Rng, config: &GeneratorConfig) -> BencodexValue {
+fn generate_large_value(rng: &mut impl Rng, config: &GeneratorConfig) -> BencodexValue<'static> {
     let mut dict = BTreeMap::new();
 
     for i in 0..config.binary_chunks {
-        let key = BencodexKey::Text(format!("binary_chunk_{i}"));
-        let value = BencodexValue::Binary(random_binary(rng, config.binary_max_size));
+        let key = BencodexKey::Text(Cow::Owned(format!("binary_chunk_{i}")));
+        let value = BencodexValue::Binary(Cow::Owned(random_binary(rng, config.binary_max_size)));
         dict.insert(key, value);
     }
 
     for i in 0..config.number_lists {
-        let key = BencodexKey::Text(format!("number_list_{i}"));
+        let key = BencodexKey::Text(Cow::Owned(format!("number_list_{i}")));
         let list: BencodexList = (0..config.numbers_per_list)
             .map(|_| BencodexValue::Number(random_number(rng)))
             .collect();
@@ -111,13 +112,13 @@ fn generate_large_value(rng: &mut impl Rng, config: &GeneratorConfig) -> Bencode
     }
 
     for i in 0..config.nested_entries {
-        let key = BencodexKey::Text(format!("nested_{i}"));
+        let key = BencodexKey::Text(Cow::Owned(format!("nested_{i}")));
         dict.insert(key, random_value(rng, 0));
     }
 
     for i in 0..config.text_entries {
-        let key = BencodexKey::Text(format!("text_{i}"));
-        let value = BencodexValue::Text(random_text(rng, config.text_max_size));
+        let key = BencodexKey::Text(Cow::Owned(format!("text_{i}")));
+        let value = BencodexValue::Text(Cow::Owned(random_text(rng, config.text_max_size)));
         dict.insert(key, value);
     }
 

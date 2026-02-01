@@ -66,7 +66,7 @@ use stage2::SimdParser;
 /// // Decode a list
 /// let value = decode_simd(b"li1ei2ei3ee")?;
 /// ```
-pub fn decode_simd(input: &[u8]) -> Result<BencodexValue, DecodeError> {
+pub fn decode_simd<'a>(input: &'a [u8]) -> Result<BencodexValue<'a>, DecodeError> {
     // Stage 1: Build structural index using SIMD
     let structural_index = build_structural_index(input);
 
@@ -79,6 +79,7 @@ pub fn decode_simd(input: &[u8]) -> Result<BencodexValue, DecodeError> {
 mod tests {
     use super::*;
     use crate::codec::types::{BencodexDictionary, BencodexKey};
+    use alloc::borrow::Cow;
     use num_bigint::BigInt;
 
     #[test]
@@ -112,11 +113,11 @@ mod tests {
     fn test_decode_simd_binary() {
         assert_eq!(
             decode_simd(b"0:").unwrap(),
-            BencodexValue::Binary(Vec::new())
+            BencodexValue::Binary(Cow::Borrowed(&[]))
         );
         assert_eq!(
             decode_simd(b"5:hello").unwrap(),
-            BencodexValue::Binary(b"hello".to_vec())
+            BencodexValue::Binary(Cow::Borrowed(b"hello".as_slice()))
         );
     }
 
@@ -124,20 +125,23 @@ mod tests {
     fn test_decode_simd_text() {
         assert_eq!(
             decode_simd(b"u0:").unwrap(),
-            BencodexValue::Text(String::new())
+            BencodexValue::Text(Cow::Borrowed(""))
         );
         assert_eq!(
             decode_simd(b"u5:hello").unwrap(),
-            BencodexValue::Text("hello".to_string())
+            BencodexValue::Text(Cow::Borrowed("hello"))
         );
     }
 
     #[test]
     fn test_decode_simd_list() {
-        assert_eq!(decode_simd(b"le").unwrap(), BencodexValue::List(Vec::new()));
+        assert_eq!(
+            decode_simd(b"le").unwrap(),
+            BencodexValue::List(alloc::vec::Vec::new())
+        );
         assert_eq!(
             decode_simd(b"li1ei2ei3ee").unwrap(),
-            BencodexValue::List(vec![
+            BencodexValue::List(alloc::vec![
                 BencodexValue::Number(BigInt::from(1)),
                 BencodexValue::Number(BigInt::from(2)),
                 BencodexValue::Number(BigInt::from(3)),
@@ -155,7 +159,7 @@ mod tests {
         let result = decode_simd(b"du1:ai42ee").unwrap();
         if let BencodexValue::Dictionary(map) = result {
             assert_eq!(
-                map.get(&BencodexKey::Text("a".to_string())),
+                map.get(&BencodexKey::Text(Cow::Borrowed("a"))),
                 Some(&BencodexValue::Number(BigInt::from(42)))
             );
         } else {

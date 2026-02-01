@@ -6,7 +6,7 @@ pub mod codec;
 mod io;
 mod prelude;
 
-pub use codec::decode::{Decode, DecodeError};
+pub use codec::decode::{Decode, DecodeError, decode_borrowed};
 pub use codec::encode::Encode;
 pub use codec::types::{
     BENCODEX_NULL, BencodexDictionary, BencodexKey, BencodexList, BencodexValue,

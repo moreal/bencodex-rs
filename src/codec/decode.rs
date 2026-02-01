@@ -60,7 +60,7 @@ pub trait Decode {
     /// assert_eq!(BencodexValue::Null, null);
     /// ```
     /// [Bencodex]: https://bencodex.org/
-    fn decode(self) -> Result<BencodexValue, DecodeError>;
+    fn decode(self) -> Result<BencodexValue<'static>, DecodeError>;
 
     /// Decodes a [Bencodex] value using SIMD-accelerated parsing.
     ///
@@ -78,7 +78,7 @@ pub trait Decode {
     /// ```
     /// [Bencodex]: https://bencodex.org/
     #[cfg(feature = "simd")]
-    fn decode_simd(self) -> Result<BencodexValue, DecodeError>;
+    fn decode_simd(self) -> Result<BencodexValue<'static>, DecodeError>;
 }
 
 trait ShouldNotBeNone<T> {
@@ -110,17 +110,22 @@ impl Expect<u8> for u8 {
     }
 }
 
-fn decode_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize), DecodeError> {
+/// When `BORROW` is true, Binary/Text values borrow from the input slice (zero-copy).
+/// When `BORROW` is false, Binary/Text values are owned copies (for `Decode for Vec<u8>`).
+fn decode_impl<'a, const BORROW: bool>(
+    vector: &'a [u8],
+    start: usize,
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     if start >= vector.len() {
         return Err(DecodeError::InvalidBencodexValueError);
     }
 
     match vector[start] {
-        b'd' => decode_dict_impl(vector, start),
-        b'l' => decode_list_impl(vector, start),
-        b'u' => decode_unicode_string_impl(vector, start),
+        b'd' => decode_dict_impl::<BORROW>(vector, start),
+        b'l' => decode_list_impl::<BORROW>(vector, start),
+        b'u' => decode_unicode_string_impl::<BORROW>(vector, start),
         b'i' => decode_number_impl(vector, start),
-        b'0'..=b'9' => decode_byte_string_impl(vector, start),
+        b'0'..=b'9' => decode_byte_string_impl::<BORROW>(vector, start),
         b't' => Ok((BencodexValue::Boolean(true), 1)),
         b'f' => Ok((BencodexValue::Boolean(false), 1)),
         b'n' => Ok((BencodexValue::Null, 1)),
@@ -131,8 +136,29 @@ fn decode_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize), De
     }
 }
 
+#[inline(always)]
+fn cow_binary<'a, const BORROW: bool>(data: &'a [u8]) -> Cow<'a, [u8]> {
+    if BORROW {
+        Cow::Borrowed(data)
+    } else {
+        Cow::Owned(data.to_vec())
+    }
+}
+
+#[inline(always)]
+fn cow_text<'a, const BORROW: bool>(text: &'a str) -> Cow<'a, str> {
+    if BORROW {
+        Cow::Borrowed(text)
+    } else {
+        Cow::Owned(text.to_string())
+    }
+}
+
 // start must be on 'd'
-fn decode_dict_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize), DecodeError> {
+fn decode_dict_impl<'a, const BORROW: bool>(
+    vector: &'a [u8],
+    start: usize,
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     vector
         .get(start)
         .should_not_be_none()?
@@ -142,7 +168,7 @@ fn decode_dict_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize
     let mut index = start + tsize;
     let mut map = BTreeMap::new();
     while vector.get(index).should_not_be_none()? != b'e' {
-        let (value, size) = decode_impl(vector, index)?;
+        let (value, size) = decode_impl::<BORROW>(vector, index)?;
         let key = match value {
             BencodexValue::Text(s) => BencodexKey::Text(s),
             BencodexValue::Binary(b) => BencodexKey::Binary(b),
@@ -150,7 +176,7 @@ fn decode_dict_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize
         };
         tsize += size;
         index = start + tsize;
-        let (value, size) = decode_impl(vector, index)?;
+        let (value, size) = decode_impl::<BORROW>(vector, index)?;
 
         match map.insert(key, value) {
             None => (),
@@ -170,7 +196,10 @@ fn decode_dict_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize
 }
 
 // start must be on 'l'
-fn decode_list_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize), DecodeError> {
+fn decode_list_impl<'a, const BORROW: bool>(
+    vector: &'a [u8],
+    start: usize,
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     vector
         .get(start)
         .should_not_be_none()?
@@ -180,7 +209,7 @@ fn decode_list_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize
     let mut list = Vec::new();
     let mut index = start + tsize;
     while vector.get(index).should_not_be_none()? != b'e' {
-        let (value, size) = decode_impl(vector, index)?;
+        let (value, size) = decode_impl::<BORROW>(vector, index)?;
         list.push(value);
         tsize += size;
         index = start + tsize
@@ -196,10 +225,10 @@ fn decode_list_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize
     Ok((BencodexValue::List(list), tsize))
 }
 
-fn decode_byte_string_impl(
-    vector: &[u8],
+fn decode_byte_string_impl<'a, const BORROW: bool>(
+    vector: &'a [u8],
     start: usize,
-) -> Result<(BencodexValue, usize), DecodeError> {
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     let mut tsize: usize = 0;
     let (length, size) = match read_length(&vector[start + tsize..]) {
         None => return Err(DecodeError::InvalidBencodexValueError),
@@ -217,16 +246,18 @@ fn decode_byte_string_impl(
         return Err(DecodeError::InvalidBencodexValueError);
     }
     Ok((
-        BencodexValue::Binary(vector[start + tsize..start + tsize + length].to_vec()),
+        BencodexValue::Binary(cow_binary::<BORROW>(
+            &vector[start + tsize..start + tsize + length],
+        )),
         tsize + length,
     ))
 }
 
 // start must be on 'u'
-fn decode_unicode_string_impl(
-    vector: &[u8],
+fn decode_unicode_string_impl<'a, const BORROW: bool>(
+    vector: &'a [u8],
     start: usize,
-) -> Result<(BencodexValue, usize), DecodeError> {
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     vector
         .get(start)
         .should_not_be_none()?
@@ -262,11 +293,14 @@ fn decode_unicode_string_impl(
         Err(_) => return Err(DecodeError::InvalidBencodexValueError),
     };
     tsize += length;
-    Ok((BencodexValue::Text(text.to_string()), tsize))
+    Ok((BencodexValue::Text(cow_text::<BORROW>(text)), tsize))
 }
 
 // start must be on 'i'
-fn decode_number_impl(vector: &[u8], start: usize) -> Result<(BencodexValue, usize), DecodeError> {
+fn decode_number_impl<'a>(
+    vector: &'a [u8],
+    start: usize,
+) -> Result<(BencodexValue<'a>, usize), DecodeError> {
     let mut tsize: usize = 1;
     if vector.len() < start + tsize + 1 {
         return Err(DecodeError::InvalidBencodexValueError);
@@ -358,6 +392,23 @@ fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
     }
 }
 
+/// Decode a Bencodex value with zero-copy borrowing from the input slice.
+///
+/// The returned value borrows binary and text data directly from `input`,
+/// avoiding allocations for those types.
+///
+/// # Examples
+/// ```
+/// use bencodex::{BencodexValue, decode_borrowed};
+///
+/// let data = b"u5:hello";
+/// let value = decode_borrowed(data).unwrap();
+/// assert_eq!(value, BencodexValue::Text("hello".into()));
+/// ```
+pub fn decode_borrowed(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
+    Ok(decode_impl::<true>(input, 0)?.0)
+}
+
 impl Decode for Vec<u8> {
     /// ```
     /// use bencodex::{ Decode, BencodexValue };
@@ -368,13 +419,17 @@ impl Decode for Vec<u8> {
     ///
     /// assert_eq!(dictionary, BencodexValue::Dictionary(BTreeMap::new()));
     /// ```
-    fn decode(self) -> Result<BencodexValue, DecodeError> {
-        Ok(decode_impl(&self, 0)?.0)
+    fn decode(self) -> Result<BencodexValue<'static>, DecodeError> {
+        let value = decode_impl::<false>(&self, 0)?.0;
+        // SAFETY: With BORROW=false, all Cow values in the tree are Cow::Owned,
+        // so no references with the local lifetime exist. The lifetime parameter
+        // is purely phantom, making the transmute to 'static sound.
+        Ok(unsafe { core::mem::transmute::<BencodexValue<'_>, BencodexValue<'static>>(value) })
     }
 
     #[cfg(feature = "simd")]
-    fn decode_simd(self) -> Result<BencodexValue, DecodeError> {
-        crate::codec::simd::decode_simd(&self)
+    fn decode_simd(self) -> Result<BencodexValue<'static>, DecodeError> {
+        crate::codec::simd::decode_simd(&self).map(|v| v.into_owned())
     }
 }
 
@@ -386,9 +441,9 @@ mod tests {
         #[test]
         fn should_return_error_with_overflowed_start() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(expected_error, decode_impl(&[], 1).unwrap_err());
-            assert_eq!(expected_error, decode_impl(b"12", 2).unwrap_err());
-            assert_eq!(expected_error, decode_impl(b"12", 20).unwrap_err());
+            assert_eq!(expected_error, decode_impl::<true>(&[], 1).unwrap_err());
+            assert_eq!(expected_error, decode_impl::<true>(b"12", 2).unwrap_err());
+            assert_eq!(expected_error, decode_impl::<true>(b"12", 20).unwrap_err());
         }
 
         #[test]
@@ -398,14 +453,14 @@ mod tests {
                     token: b'x',
                     point: 0,
                 },
-                decode_impl(b"x", 0).unwrap_err()
+                decode_impl::<true>(b"x", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'k',
                     point: 4,
                 },
-                decode_impl(b"xyzok", 4).unwrap_err()
+                decode_impl::<true>(b"xyzok", 4).unwrap_err()
             );
         }
     }
@@ -416,24 +471,48 @@ mod tests {
         #[test]
         fn should_return_error_with_insufficient_length_source() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(expected_error, decode_dict_impl(b"d", 0).unwrap_err());
-            assert_eq!(expected_error, decode_dict_impl(b"d", 2).unwrap_err());
-            assert_eq!(expected_error, decode_dict_impl(&[], 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"d", 0).unwrap_err()
+            );
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"d", 2).unwrap_err()
+            );
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(&[], 0).unwrap_err()
+            );
         }
 
         #[test]
         fn should_return_error_with_source_having_incorrect_key() {
             let expected_error = DecodeError::InvalidBencodexValueError;
             // { 0: null }
-            assert_eq!(expected_error, decode_dict_impl(b"di0ene", 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"di0ene", 0).unwrap_err()
+            );
             // { null: null }
-            assert_eq!(expected_error, decode_dict_impl(b"dnne", 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"dnne", 0).unwrap_err()
+            );
             // { list: null }
-            assert_eq!(expected_error, decode_dict_impl(b"dlene", 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"dlene", 0).unwrap_err()
+            );
             // { dictionary: null }
-            assert_eq!(expected_error, decode_dict_impl(b"ddene", 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"ddene", 0).unwrap_err()
+            );
             // { boolean: null }
-            assert_eq!(expected_error, decode_dict_impl(b"dtene", 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_dict_impl::<true>(b"dtene", 0).unwrap_err()
+            );
         }
 
         #[test]
@@ -443,14 +522,14 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_dict_impl(b"dkne", 0).unwrap_err()
+                decode_dict_impl::<true>(b"dkne", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'k',
                     point: 4,
                 },
-                decode_dict_impl(b"d1:ake", 0).unwrap_err()
+                decode_dict_impl::<true>(b"d1:ake", 0).unwrap_err()
             );
         }
     }
@@ -461,9 +540,18 @@ mod tests {
         #[test]
         fn should_return_error_with_insufficient_length_source() {
             let expected_error = DecodeError::InvalidBencodexValueError;
-            assert_eq!(expected_error, decode_list_impl(b"l", 0).unwrap_err());
-            assert_eq!(expected_error, decode_list_impl(b"l", 2).unwrap_err());
-            assert_eq!(expected_error, decode_list_impl(&[], 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_list_impl::<true>(b"l", 0).unwrap_err()
+            );
+            assert_eq!(
+                expected_error,
+                decode_list_impl::<true>(b"l", 2).unwrap_err()
+            );
+            assert_eq!(
+                expected_error,
+                decode_list_impl::<true>(&[], 0).unwrap_err()
+            );
         }
 
         #[test]
@@ -473,7 +561,7 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_list_impl(b"lke", 0).unwrap_err()
+                decode_list_impl::<true>(b"lke", 0).unwrap_err()
             );
         }
     }
@@ -486,17 +574,20 @@ mod tests {
             let expected_error = DecodeError::InvalidBencodexValueError;
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(b"1", 0).unwrap_err()
+                decode_byte_string_impl::<true>(b"1", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(b"1:", 0).unwrap_err()
+                decode_byte_string_impl::<true>(b"1:", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_byte_string_impl(b"2:a", 0).unwrap_err()
+                decode_byte_string_impl::<true>(b"2:a", 0).unwrap_err()
             );
-            assert_eq!(expected_error, decode_byte_string_impl(&[], 0).unwrap_err());
+            assert_eq!(
+                expected_error,
+                decode_byte_string_impl::<true>(&[], 0).unwrap_err()
+            );
         }
 
         #[test]
@@ -506,7 +597,7 @@ mod tests {
                     token: b'k',
                     point: 1,
                 },
-                decode_byte_string_impl(b"1ka", 0).unwrap_err()
+                decode_byte_string_impl::<true>(b"1ka", 0).unwrap_err()
             );
         }
     }
@@ -519,26 +610,26 @@ mod tests {
             let expected_error = DecodeError::InvalidBencodexValueError;
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(b"u", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"u", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(b"u1", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"u1", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(b"u2:a", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"u2:a", 0).unwrap_err()
             );
             assert_eq!(
                 DecodeError::UnexpectedTokenError {
                     token: b'k',
                     point: 1,
                 },
-                decode_unicode_string_impl(b"uk", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"uk", 0).unwrap_err()
             );
             assert_eq!(
                 expected_error,
-                decode_unicode_string_impl(&[], 0).unwrap_err()
+                decode_unicode_string_impl::<true>(&[], 0).unwrap_err()
             );
         }
 
@@ -549,7 +640,7 @@ mod tests {
                     token: b'k',
                     point: 2
                 },
-                decode_unicode_string_impl(b"u1ka", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"u1ka", 0).unwrap_err()
             );
         }
 
@@ -560,7 +651,7 @@ mod tests {
                     token: b'-',
                     point: 1,
                 },
-                decode_unicode_string_impl(b"u-1:a", 0).unwrap_err()
+                decode_unicode_string_impl::<true>(b"u-1:a", 0).unwrap_err()
             );
         }
 
@@ -568,7 +659,7 @@ mod tests {
         fn should_return_error_with_invalid_source_having_invalid_unicode_string() {
             assert_eq!(
                 DecodeError::InvalidBencodexValueError,
-                decode_unicode_string_impl(&[b'u', b'1', b':', 0x90], 0).unwrap_err()
+                decode_unicode_string_impl::<true>(&[b'u', b'1', b':', 0x90], 0).unwrap_err()
             );
         }
     }
@@ -694,6 +785,35 @@ mod tests {
         fn should_return_none_with_single_minus_sign_and_invalid_char() {
             assert_eq!(None, read_number(b"-e"));
             assert_eq!(None, read_number(b"-x"));
+        }
+    }
+
+    mod decode_borrowed {
+        use super::super::*;
+
+        #[test]
+        fn should_return_borrowed_binary() {
+            let data = b"5:hello";
+            let value = decode_borrowed(data).unwrap();
+            assert_eq!(
+                value,
+                BencodexValue::Binary(Cow::Borrowed(b"hello".as_slice()))
+            );
+        }
+
+        #[test]
+        fn should_return_borrowed_text() {
+            let data = b"u5:hello";
+            let value = decode_borrowed(data).unwrap();
+            assert_eq!(value, BencodexValue::Text(Cow::Borrowed("hello")));
+        }
+
+        #[test]
+        fn should_match_owned_decode() {
+            let data = b"du3:foou3:bare";
+            let borrowed = decode_borrowed(data).unwrap().into_owned();
+            let owned = data.to_vec().decode().unwrap();
+            assert_eq!(borrowed, owned);
         }
     }
 }
