@@ -14,19 +14,18 @@ The [Rust] implementation of [Bencodex].
 
 ## Quick start
 
+These snippets use `?` inside a function that returns `Result`.
+
 ```rust
 use bencodex::{BencodexValue, decode_borrowed, to_writer};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut bytes = Vec::new();
-    to_writer(&mut bytes, "hello")?;
-    assert_eq!(bytes, b"u5:hello");
-    let value = decode_borrowed(&bytes)?;
-    assert_eq!(value, BencodexValue::from("hello"));
-    let owned = value.into_owned(); // Can outlive bytes.
-    assert_eq!(owned, BencodexValue::from("hello"));
-    Ok(())
-}
+let mut bytes = Vec::new();
+to_writer(&mut bytes, "hello")?;
+assert_eq!(bytes, b"u5:hello");
+let value = decode_borrowed(&bytes)?;
+assert_eq!(value, BencodexValue::from("hello"));
+let owned = value.into_owned(); // Can outlive bytes.
+assert_eq!(owned, BencodexValue::from("hello"));
 ```
 
 Scalar and SIMD decoders read the first value and ignore trailing bytes.
@@ -67,16 +66,12 @@ bencodex-rs = { version = "<VERSION>", features = ["simd"] }
 use bencodex::Decode;
 
 // Using trait method
+let data = b"i42e".to_vec();
+let value = data.decode_simd()?;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let data = b"i42e".to_vec();
-    let value = data.decode_simd()?;
-
-    // Or using the function directly
-    use bencodex::simd::decode_simd;
-    let value = decode_simd(b"li1ei2ei3ee")?;
-    Ok(())
-}
+// Or using the function directly
+use bencodex::simd::decode_simd;
+let value = decode_simd(b"li1ei2ei3ee")?;
 ```
 
 ## `no_std` Support
@@ -112,11 +107,8 @@ To encode from Bencodex to JSON, you can use `to_json` function.
 ```rust
 use bencodex::{ BencodexValue, json::to_json };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let json = to_json(&BencodexValue::Null)?;
-    println!("{}", json);
-    Ok(())
-}
+let json = to_json(&BencodexValue::Null)?;
+println!("{}", json);
 ```
 
 There are two ways to encode `BencodexValue::Binary` type, `Hex` and `Base64`. You can choose one way with `bencodex::json::BinaryEncoding`. And you can pass it with `bencodex::json::JsonEncodeOptions` to `bencodex::json::to_json_with_options`.
@@ -125,13 +117,10 @@ There are two ways to encode `BencodexValue::Binary` type, `Hex` and `Base64`. Y
 use bencodex::BencodexValue;
 use bencodex::json::{ BinaryEncoding, JsonEncodeOptions, to_json_with_options };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let json = to_json_with_options(&BencodexValue::Null, JsonEncodeOptions {
-      binary_encoding: BinaryEncoding::Base64,
-    })?;
-    println!("{}", json);
-    Ok(())
-}
+let json = to_json_with_options(&BencodexValue::Null, JsonEncodeOptions {
+  binary_encoding: BinaryEncoding::Base64,
+})?;
+println!("{}", json);
 ```
 
 ### Decoding from JSON
@@ -142,11 +131,8 @@ To decode from JSON to Bencodex, you can use `from_json_string` and `from_json` 
 // from_json_string
 use bencodex::{ BencodexValue, json::from_json_string };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let value = from_json_string("null")?;
-    assert_eq!(value, BencodexValue::Null);
-    Ok(())
-}
+let value = from_json_string("null")?;
+assert_eq!(value, BencodexValue::Null);
 ```
 
 ```rust
@@ -154,12 +140,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use serde_json::from_str;
 use bencodex::{ BencodexValue, json::from_json };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let json = from_str("null")?;
-    let value = from_json(&json)?;
-    assert_eq!(value, BencodexValue::Null);
-    Ok(())
-}
+let json = from_str("null")?;
+let value = from_json(&json)?;
+assert_eq!(value, BencodexValue::Null);
 ```
 
 ### CLI Tool

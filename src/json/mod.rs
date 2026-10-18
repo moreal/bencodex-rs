@@ -12,12 +12,14 @@
 //! # Examples
 //!
 //! ```
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use bencodex::json::{from_json_string, to_json};
 //!
 //! let value = from_json_string(r#"[null,true,"42","0xff"]"#)?;
 //! let encoded = to_json(&value)?;
 //! assert_eq!(from_json_string(&encoded)?, value);
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(())
+//! # }
 //! ```
 
 mod decode;

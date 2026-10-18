@@ -74,13 +74,15 @@ pub trait Decode {
     /// # Examples
     /// Basic usage with [`Vec<u8>`], the default implementor which implements `Decode`.
     /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     ///
     /// let vec = vec![b'n'];
     /// let null = vec.decode()?;
     ///
     /// assert_eq!(BencodexValue::Null, null);
-    /// # Ok::<(), bencodex::DecodeError>(())
+    /// # Ok(())
+    /// # }
     /// ```
     /// [Bencodex]: https://bencodex.org/
     fn decode(self) -> Result<BencodexValue<'static>, DecodeError>;
@@ -101,12 +103,14 @@ pub trait Decode {
     ///
     /// # Examples
     /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     ///
     /// let vec = b"i42e".to_vec();
     /// let number = vec.decode_simd()?;
     /// assert_eq!(number, BencodexValue::from(42));
-    /// # Ok::<(), bencodex::DecodeError>(())
+    /// # Ok(())
+    /// # }
     /// ```
     /// [Bencodex]: https://bencodex.org/
     #[cfg(feature = "simd")]
@@ -445,12 +449,14 @@ fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
 ///
 /// # Examples
 /// ```
+/// # fn main() -> Result<(), bencodex::DecodeError> {
 /// use bencodex::{BencodexValue, decode_borrowed};
 ///
 /// let data = b"u5:hello";
 /// let value = decode_borrowed(data)?;
 /// assert_eq!(value, BencodexValue::Text("hello".into()));
-/// # Ok::<(), bencodex::DecodeError>(())
+/// # Ok(())
+/// # }
 /// ```
 pub fn decode_borrowed(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
     Ok(decode_impl::<true>(input, 0)?.0)
@@ -458,6 +464,7 @@ pub fn decode_borrowed(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
 
 impl Decode for Vec<u8> {
     /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     /// use std::collections::BTreeMap;
     ///
@@ -465,7 +472,8 @@ impl Decode for Vec<u8> {
     /// let dictionary = buf.decode()?;
     ///
     /// assert_eq!(dictionary, BencodexValue::Dictionary(BTreeMap::new()));
-    /// # Ok::<(), bencodex::DecodeError>(())
+    /// # Ok(())
+    /// # }
     /// ```
     fn decode(self) -> Result<BencodexValue<'static>, DecodeError> {
         let value = decode_impl::<false>(&self, 0)?.0;

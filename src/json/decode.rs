@@ -59,12 +59,14 @@ fn from_json_key_impl(s: &str) -> Result<BencodexKey<'static>, JsonDecodeError> 
 /// # Examples
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use bencodex::BencodexValue;
 /// use bencodex::json::from_json;
 ///
 /// let json = serde_json::from_str("null")?;
 /// assert_eq!(from_json(&json)?, BencodexValue::Null);
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ```
@@ -124,11 +126,13 @@ pub fn from_json(value: &Value) -> Result<BencodexValue<'static>, JsonDecodeErro
 /// # Examples
 ///
 /// ```
+/// # fn main() -> Result<(), bencodex::json::JsonDecodeError> {
 /// use bencodex::BencodexValue;
 /// use bencodex::json::from_json_string;
 ///
 /// assert_eq!(from_json_string("null")?, BencodexValue::Null);
-/// # Ok::<(), bencodex::json::JsonDecodeError>(())
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// Invalid JSON syntax:

@@ -147,12 +147,14 @@ pub struct JsonEncodeOptions {
 /// # Examples
 ///
 /// ```
+/// # fn main() -> Result<(), serde_json::Error> {
 /// use bencodex::BencodexValue;
 /// use bencodex::json::to_json;
 ///
 /// let value = BencodexValue::Binary(vec![0xff, 0x00].into());
 /// assert_eq!(to_json(&value)?, r#""b64:/wA=""#);
-/// # Ok::<(), serde_json::Error>(())
+/// # Ok(())
+/// # }
 /// ```
 pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
     serde_json::to_string(&BencodexJsonEncoder::new(
@@ -173,6 +175,7 @@ pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
 /// # Examples
 ///
 /// ```
+/// # fn main() -> Result<(), serde_json::Error> {
 /// use bencodex::BencodexValue;
 /// use bencodex::json::{BinaryEncoding, JsonEncodeOptions, to_json_with_options};
 ///
@@ -181,7 +184,8 @@ pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
 ///     binary_encoding: BinaryEncoding::Hex,
 /// };
 /// assert_eq!(to_json_with_options(&value, options)?, r#""0xff00""#);
-/// # Ok::<(), serde_json::Error>(())
+/// # Ok(())
+/// # }
 /// ```
 pub fn to_json_with_options(
     value: &BencodexValue<'_>,

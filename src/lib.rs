@@ -10,6 +10,7 @@
 //! a borrowed value needs to outlive its input.
 //!
 //! ```
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use bencodex::{BencodexValue, Encode, decode_borrowed};
 //!
 //! let value = BencodexValue::from("hello");
@@ -17,7 +18,8 @@
 //! value.encode(&mut bytes)?;
 //! assert_eq!(bytes, b"u5:hello");
 //! assert_eq!(decode_borrowed(&bytes)?, value);
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Features

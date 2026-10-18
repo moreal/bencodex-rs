@@ -4,6 +4,7 @@ use num_bigint::BigInt;
 /// The type alias of `BTreeMap<BencodexKey, BencodexValue>` to reduce code size.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use bencodex::{ Encode, BencodexDictionary };
 ///
 /// let mut dict = BencodexDictionary::new();
@@ -12,12 +13,14 @@ use num_bigint::BigInt;
 /// let mut buf = vec![];
 /// dict.encode(&mut buf)?;
 /// assert_eq!(buf, b"du3:foou3:bare");
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 pub type BencodexDictionary<'a> = BTreeMap<BencodexKey<'a>, BencodexValue<'a>>;
 /// The type alias of `Vec<BencodexValue>` to reduce code size.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use bencodex::{ Encode, BencodexList };
 ///
 /// let mut list = BencodexList::new();
@@ -27,19 +30,22 @@ pub type BencodexDictionary<'a> = BTreeMap<BencodexKey<'a>, BencodexValue<'a>>;
 /// let mut buf = vec![];
 /// list.encode(&mut buf)?;
 /// assert_eq!(buf, b"lu3:foou3:bare");
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 pub type BencodexList<'a> = Vec<BencodexValue<'a>>;
 
 /// The constant of `BencodexValue::Null`.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use bencodex::{ Encode, BENCODEX_NULL };
 ///
 /// let mut buf = vec![];
 /// BENCODEX_NULL.encode(&mut buf)?;
 /// assert_eq!(buf, b"n");
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 pub const BENCODEX_NULL: BencodexValue<'static> = BencodexValue::Null;
 
@@ -56,6 +62,7 @@ pub const BENCODEX_NULL: BencodexValue<'static> = BencodexValue::Null;
 /// conversions of `Vec<u8>` to binary and `Vec<T>` to a list.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use bencodex::{BencodexValue, Encode};
 ///
 /// let value = BencodexValue::from(vec![1_u128, 2, 3]);
@@ -65,7 +72,8 @@ pub const BENCODEX_NULL: BencodexValue<'static> = BencodexValue::Null;
 ///
 /// let binary = BencodexValue::from(vec![1_u8, 2, 3]);
 /// assert!(matches!(binary, BencodexValue::Binary(_)));
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub enum BencodexValue<'a> {
