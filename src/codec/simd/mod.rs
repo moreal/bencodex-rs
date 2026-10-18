@@ -12,24 +12,26 @@
 //!
 //! ## Supported Architectures
 //!
-//! - **x86_64**: SSE4.2 and AVX2 (runtime detection)
+//! - **x86_64**: AVX2 or SSE4.2 (runtime detection), with a scalar fallback
 //! - **AArch64**: NEON (always available)
 //! - **Other**: Falls back to scalar implementation
 //!
 //! ## Usage
 //!
-//! ```ignore
+//! ```
 //! use bencodex::simd::decode_simd;
 //!
+//! # fn main() -> Result<(), bencodex::DecodeError> {
 //! let data = b"li42eu5:helloe";
 //! let value = decode_simd(data)?;
+//! # Ok(())
+//! # }
 //! ```
 
-pub mod arch;
-pub mod number;
-pub mod stage1;
-pub mod stage2;
-pub mod structural;
+mod arch;
+mod stage1;
+mod stage2;
+mod structural;
 
 use crate::codec::decode::DecodeError;
 use crate::codec::types::BencodexValue;
@@ -37,34 +39,46 @@ use crate::codec::types::BencodexValue;
 use stage1::build_structural_index;
 use stage2::SimdParser;
 
-/// Decode a Bencodex value using SIMD-accelerated parsing.
+/// Decode the first Bencodex value using SIMD-accelerated parsing.
 ///
 /// This function automatically selects the best available SIMD implementation
 /// based on runtime CPU feature detection:
 ///
-/// - On x86_64: Uses AVX2 if available, otherwise SSE4.2
+/// - On x86_64: Uses AVX2 if available, then SSE4.2, then scalar code
 /// - On AArch64: Uses NEON (always available)
 /// - On other platforms: Falls back to scalar implementation
 ///
-/// # Arguments
+/// Binary and text payloads, including dictionary keys, borrow from `input`.
+/// Containers and arbitrary-precision integers allocate their own storage.
 ///
-/// * `input` - The Bencodex-encoded byte slice to decode
+/// Trailing bytes are ignored. Successful decoding does not certify canonical
+/// Bencodex: this parser accepts forms such as leading zeros and unsorted
+/// dictionary keys. It rejects duplicate keys. Structural positions use 32-bit
+/// offsets, so inputs larger than `u32::MAX` bytes are unsupported.
 ///
-/// # Returns
+/// # Errors
 ///
-/// * `Ok(BencodexValue)` - The decoded value
-/// * `Err(DecodeError)` - If the input is not valid Bencodex
+/// Returns [`DecodeError::UnexpectedTokenError`] for an unexpected type marker.
+/// Returns [`DecodeError::InvalidBencodexValueError`] for an empty or truncated
+/// value, invalid integer or string length, invalid UTF-8 text, duplicate
+/// dictionary keys, or a dictionary key that is neither binary nor text.
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use bencodex::simd::decode_simd;
+/// use bencodex::BencodexValue;
 ///
+/// # fn main() -> Result<(), bencodex::DecodeError> {
 /// // Decode an integer
 /// let value = decode_simd(b"i42e")?;
+/// assert!(matches!(value, BencodexValue::Number(_)));
 ///
 /// // Decode a list
 /// let value = decode_simd(b"li1ei2ei3ee")?;
+/// assert!(matches!(value, BencodexValue::List(items) if items.len() == 3));
+/// # Ok(())
+/// # }
 /// ```
 pub fn decode_simd<'a>(input: &'a [u8]) -> Result<BencodexValue<'a>, DecodeError> {
     // Stage 1: Build structural index using SIMD
@@ -172,5 +186,33 @@ mod tests {
         assert!(decode_simd(b"").is_err());
         assert!(decode_simd(b"x").is_err());
         assert!(decode_simd(b"i42").is_err()); // Missing 'e'
+    }
+
+    #[test]
+    fn rejects_binary_length_that_overflows_input_range() {
+        let input = alloc::format!("{}:", usize::MAX);
+        assert_eq!(
+            decode_simd(input.as_bytes()),
+            Err(DecodeError::InvalidBencodexValueError)
+        );
+    }
+
+    #[test]
+    fn rejects_text_length_that_overflows_input_range() {
+        let input = alloc::format!("u{}:", usize::MAX);
+        assert_eq!(
+            decode_simd(input.as_bytes()),
+            Err(DecodeError::InvalidBencodexValueError)
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_dictionary_keys() {
+        for input in [b"d1:an1:ate".as_slice(), b"du1:anu1:ate"] {
+            assert_eq!(
+                decode_simd(input),
+                Err(DecodeError::InvalidBencodexValueError)
+            );
+        }
     }
 }

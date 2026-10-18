@@ -35,6 +35,10 @@ The decoder automatically selects the best available instruction set at runtime.
 
 ### Module Structure
 
+Only `decode_simd` is public, through `bencodex::simd` and
+`bencodex::codec::simd`. The modules, parser, backend trait, and structural
+index below are private implementation details.
+
 ```
 src/codec/simd/
 ├── mod.rs              # Public API, runtime dispatcher
@@ -45,8 +49,7 @@ src/codec/simd/
 │   └── fallback.rs     # Scalar fallback
 ├── structural.rs       # StructuralIndex type
 ├── stage1.rs           # Structural character scanning
-├── stage2.rs           # Value extraction parser
-└── number.rs           # Number parsing utilities
+└── stage2.rs           # Value extraction parser
 ```
 
 ### SimdBackend Trait
@@ -135,7 +138,7 @@ fn find_next_structural(&mut self, byte: u8) -> Option<usize> {
 
 ```toml
 [dependencies]
-bencodex = { version = "0.6", features = ["simd"] }
+bencodex-rs = { version = "0.6", features = ["simd"] }
 ```
 
 ### Using the Trait Method
@@ -143,8 +146,11 @@ bencodex = { version = "0.6", features = ["simd"] }
 ```rust
 use bencodex::Decode;
 
-let data = b"li1ei2ei3ee".to_vec();
-let value = data.decode_simd().unwrap();
+fn main() -> Result<(), bencodex::DecodeError> {
+    let data = b"li1ei2ei3ee".to_vec();
+    let value = data.decode_simd()?;
+    Ok(())
+}
 ```
 
 ### Using the Function Directly
@@ -152,8 +158,16 @@ let value = data.decode_simd().unwrap();
 ```rust
 use bencodex::simd::decode_simd;
 
-let value = decode_simd(b"d3:keyu5:valueee").unwrap();
+fn main() -> Result<(), bencodex::DecodeError> {
+    let value = decode_simd(b"d3:keyu5:valuee")?;
+    Ok(())
+}
 ```
+
+Decoding borrows text and binary payloads and rejects invalid lengths and duplicate
+keys. It reads the first value, ignores trailing bytes, and accepts some
+noncanonical forms. Structural offsets are 32-bit, so inputs larger than
+`u32::MAX` are unsupported.
 
 ## Performance Characteristics
 

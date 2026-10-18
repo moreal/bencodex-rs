@@ -6,21 +6,45 @@ The [Rust] implementation of [Bencodex].
 
 - **Correctness** - Implement Bencodex spec and passed tests with its testsuites.
 - **[Bencodex JSON]** - Support encoding Bencodex to JSON and decoding JSON to Bencodex.
-- **Feature flags** - Support `std`, `alloc`, `json`, `json-cli` feature flags to minimize binary size in use.
+- **Feature flags** - Optional standard-library, JSON, CLI, and SIMD support.
 - **`no_std` support** - Can be used in embedded environments with `alloc`.
 
 [Rust]: https://rust-lang.org/
 [Bencodex]: https://bencodex.org/
+
+## Quick start
+
+These snippets use `?` inside a function that returns `Result`.
+
+```rust
+use bencodex::{BencodexValue, decode_borrowed, to_writer};
+
+let mut bytes = Vec::new();
+to_writer(&mut bytes, "hello")?;
+assert_eq!(bytes, b"u5:hello");
+let value = decode_borrowed(&bytes)?;
+assert_eq!(value, BencodexValue::from("hello"));
+let owned = value.into_owned(); // Can outlive bytes.
+assert_eq!(owned, BencodexValue::from("hello"));
+```
+
+Scalar and SIMD decoders read the first value and ignore trailing bytes.
+They accept some noncanonical encodings (including leading zeroes and unordered
+dictionary keys), so decoding is not a canonical-format validation step.
+Invalid lengths and duplicate dictionary keys return errors.
+
+See the [release notes](CHANGES.md) for changes and migration guidance.
 
 ## Feature Flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
 | `std` | Yes | Enables standard library support |
-| `alloc` | Yes (via `std`) | Enables `alloc` crate for `no_std` environments |
+| `alloc` | Yes (via `std`) | Compatibility flag; allocation is required even without this flag |
 | `json` | No | Enables Bencodex JSON encoding/decoding |
 | `json-cli` | No | Enables CLI tool for JSON conversion |
 | `simd` | No | Enables SIMD-accelerated decoding |
+| `test` | No | Legacy switch enabling the optional base64 dependency; not required to run tests |
 
 ## SIMD Decoding
 
@@ -36,15 +60,15 @@ bencodex-rs = { version = "<VERSION>", features = ["simd"] }
 ```
 
 ```rust
-use bencodex::{Decode, BencodexValue};
+use bencodex::Decode;
 
 // Using trait method
 let data = b"i42e".to_vec();
-let value = data.decode_simd().unwrap();
+let value = data.decode_simd()?;
 
 // Or using the function directly
 use bencodex::simd::decode_simd;
-let value = decode_simd(b"li1ei2ei3ee").unwrap();
+let value = decode_simd(b"li1ei2ei3ee")?;
 ```
 
 ## `no_std` Support
@@ -57,7 +81,8 @@ bencodex-rs = { version = "<VERSION>", default-features = false, features = ["al
 ```
 
 **Notes:**
-- `no_std` support requires Rust 1.81+ (for `core::error::Error` stabilization).
+- The minimum supported Rust version is 1.88 for all feature configurations.
+- `bencodex::io::{Write, Error}` exposes the writer API in both `std` and `no_std` builds. With `std`, these are standard-library re-exports; without it, they are the crate’s minimal writer trait and opaque error type.
 - The `json` feature requires `std` and is not available in `no_std` environments.
 
 ## Bencodex JSON feature
@@ -79,7 +104,7 @@ To encode from Bencodex to JSON, you can use `to_json` function.
 ```rust
 use bencodex::{ BencodexValue, json::to_json };
 
-let json = to_json(&BencodexValue::Null).expect("Failed to encode JSON.");
+let json = to_json(&BencodexValue::Null)?;
 println!("{}", json);
 ```
 
@@ -91,7 +116,7 @@ use bencodex::json::{ BinaryEncoding, JsonEncodeOptions, to_json_with_options };
 
 let json = to_json_with_options(&BencodexValue::Null, JsonEncodeOptions {
   binary_encoding: BinaryEncoding::Base64,
-}).expect("Failed to encode JSON.");
+})?;
 println!("{}", json);
 ```
 
@@ -103,9 +128,8 @@ To decode from JSON to Bencodex, you can use `from_json_string` and `from_json` 
 // from_json_string
 use bencodex::{ BencodexValue, json::from_json_string };
 
-let result = from_json_string("null");
-assert!(result.is_ok());
-assert_eq!(result.unwrap(), BencodexValue::Null);
+let value = from_json_string("null")?;
+assert_eq!(value, BencodexValue::Null);
 ```
 
 ```rust
@@ -113,10 +137,9 @@ assert_eq!(result.unwrap(), BencodexValue::Null);
 use serde_json::from_str;
 use bencodex::{ BencodexValue, json::from_json };
 
-let json = from_str("null").unwrap();
-let result = from_json(&json);
-assert!(result.is_ok());
-assert_eq!(result.unwrap(), BencodexValue::Null);
+let json = from_str("null")?;
+let value = from_json(&json)?;
+assert_eq!(value, BencodexValue::Null);
 ```
 
 ### CLI Tool

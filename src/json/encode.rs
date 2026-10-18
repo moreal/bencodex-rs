@@ -101,51 +101,61 @@ fn format_text(text: &str) -> String {
     format!("\u{FEFF}{}", text)
 }
 
-/// An enum type to choose how to encode Bencodex binary type when encoding to JSON.
-#[derive(Default, Copy, Clone)]
+/// The encoding used for binary values and dictionary keys in JSON.
+///
+/// Both variants can be decoded by [`super::from_json`] and
+/// [`super::from_json_string`].
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum BinaryEncoding {
+    /// Standard base64 with padding, prefixed with `b64:` (the default).
     #[default]
     Base64,
+    /// Lowercase hexadecimal, prefixed with `0x`.
     Hex,
 }
 
-/// Options used by [`to_json_with_options`] when encoding Bencodex to JSON.
+/// Options for encoding Bencodex as JSON with [`to_json_with_options`].
+///
+/// The default uses [`BinaryEncoding::Base64`].
 ///
 /// # Examples
 ///
-/// If you want to encode binary as hexadecimal string, you can use like below:
-///
 /// ```
-/// use bencodex::json::{ JsonEncodeOptions, BinaryEncoding };
+/// use bencodex::json::{BinaryEncoding, JsonEncodeOptions};
 ///
-/// JsonEncodeOptions {
-///   binary_encoding: BinaryEncoding::Hex,
+/// let options = JsonEncodeOptions {
+///     binary_encoding: BinaryEncoding::Hex,
 /// };
+/// assert_ne!(options, JsonEncodeOptions::default());
 /// ```
-///
-/// If you want to encode binary as base64 string, you can use like below:
-///
-/// ```
-/// use bencodex::json::{ JsonEncodeOptions, BinaryEncoding };
-///
-/// JsonEncodeOptions {
-///   binary_encoding: BinaryEncoding::Base64,
-/// };
-/// ```
-///
-/// Or you can use [`JsonEncodeOptions::default`] for base64 case:
-///
-/// ```
-/// use bencodex::json::{ JsonEncodeOptions, BinaryEncoding };
-///
-/// JsonEncodeOptions::default();
-/// ```
-#[derive(Default, Copy, Clone)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct JsonEncodeOptions {
+    /// The encoding used for binary values and dictionary keys.
     pub binary_encoding: BinaryEncoding,
 }
 
-/// Encode Bencodex to JSON with default options.
+/// Encodes a Bencodex value as a compact JSON string using base64 for binary data.
+///
+/// Uses [`JsonEncodeOptions::default`]. See the
+/// [module documentation](crate::json) for the JSON representation.
+///
+/// # Errors
+///
+/// Returns any error reported by the JSON serializer. All current Bencodex
+/// variants have a supported JSON representation.
+///
+/// # Examples
+///
+/// ```
+/// # fn main() -> Result<(), serde_json::Error> {
+/// use bencodex::BencodexValue;
+/// use bencodex::json::to_json;
+///
+/// let value = BencodexValue::Binary(vec![0xff, 0x00].into());
+/// assert_eq!(to_json(&value)?, r#""b64:/wA=""#);
+/// # Ok(())
+/// # }
+/// ```
 pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
     serde_json::to_string(&BencodexJsonEncoder::new(
         value,
@@ -153,7 +163,30 @@ pub fn to_json(value: &BencodexValue<'_>) -> Result<String, serde_json::Error> {
     ))
 }
 
-/// Encode Bencodex to JSON with the given options.
+/// Encodes a Bencodex value as a compact JSON string using the given options.
+///
+/// See the [module documentation](crate::json) for the JSON representation.
+///
+/// # Errors
+///
+/// Returns any error reported by the JSON serializer. All current Bencodex
+/// variants have a supported JSON representation.
+///
+/// # Examples
+///
+/// ```
+/// # fn main() -> Result<(), serde_json::Error> {
+/// use bencodex::BencodexValue;
+/// use bencodex::json::{BinaryEncoding, JsonEncodeOptions, to_json_with_options};
+///
+/// let value = BencodexValue::Binary(vec![0xff, 0x00].into());
+/// let options = JsonEncodeOptions {
+///     binary_encoding: BinaryEncoding::Hex,
+/// };
+/// assert_eq!(to_json_with_options(&value, options)?, r#""0xff00""#);
+/// # Ok(())
+/// # }
+/// ```
 pub fn to_json_with_options(
     value: &BencodexValue<'_>,
     options: JsonEncodeOptions,

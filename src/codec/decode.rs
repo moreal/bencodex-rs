@@ -7,57 +7,82 @@ use core::str;
 use core::str::FromStr;
 use num_bigint::BigInt;
 
-/// The error type which is returned from decoding a Bencodex value through [`Decode::decode`].
-#[derive(Debug, PartialEq)]
+/// An error decoding a Bencodex value.
+///
+/// Returned by [`decode_borrowed`] and [`Decode::decode`]. Token errors carry
+/// the offending byte and its zero-based offset in the original input.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum DecodeError {
-    /// This should be used when it failed to decode. In future, it will be separated more and more.
+    /// The input is truncated or contains an invalid value or duplicate key.
     InvalidBencodexValueError,
-    /// This should be used when it failed to decode because there is unexpected token appeared while decoding.
+    /// An unexpected byte appeared while decoding a value.
     ///
     /// # Example
     ///
-    /// For example, The encoded bytes of [`BencodexValue::Number`] are formed as 'i{}e' (e.g., 'i0e', 'i2147483647e'). If it is not satisified, it should be result through inside [`Err`].
+    /// Integers are delimited by `i` and `e`; the bytes between them must be
+    /// decimal digits, optionally preceded by a minus sign.
     ///
     /// ```
     /// use bencodex::{ Decode, DecodeError };
     ///
     /// //                     v -- should be b'0' ~ b'9' digit.
     /// let vec = vec![b'i', b':', b'e'];
-    /// let error = vec.decode().unwrap_err();
     /// let expected_error = DecodeError::UnexpectedTokenError {
     ///     token: b':',
     ///     point: 1,
     /// };
-    /// assert_eq!(expected_error, error);
+    /// assert_eq!(Err(expected_error), vec.decode());
     /// ```
-    UnexpectedTokenError { token: u8, point: usize },
+    UnexpectedTokenError {
+        /// The unexpected byte.
+        token: u8,
+        /// The zero-based byte offset in the input.
+        point: usize,
+    },
 }
 
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Self::InvalidBencodexValueError => f.write_str("invalid bencodex value"),
+            Self::UnexpectedTokenError { token, point } => {
+                write!(f, "unexpected token 0x{token:02x} at byte {point}")
+            }
+        }
     }
 }
 
 impl Error for DecodeError {}
 
-/// `Decode` is a trait to decode a [Bencodex] value.
+/// Decodes the first [Bencodex] value into owned data.
+///
+/// See [`Decode::decode`] for an example. To borrow strings directly from
+/// an input slice, use [`decode_borrowed`] instead. Trailing bytes are ignored.
 ///
 /// [Bencodex]: https://bencodex.org/
 pub trait Decode {
-    /// Decodes a [Bencodex] value to return from this type.
+    /// Decodes the first [Bencodex] value, returning fully owned data.
     ///
-    /// If decoding succeeds, return the value inside [`Ok`]. Otherwise, return the [`DecodeError`] inside [`Err`].
+    /// Trailing bytes after the first value are ignored, as in
+    /// [`decode_borrowed`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecodeError`] for a truncated value, invalid string length or
+    /// UTF-8, invalid dictionary key, duplicate key, or unexpected token.
     ///
     /// # Examples
     /// Basic usage with [`Vec<u8>`], the default implementor which implements `Decode`.
     /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     ///
     /// let vec = vec![b'n'];
-    /// let null = vec.decode().unwrap();
+    /// let null = vec.decode()?;
     ///
     /// assert_eq!(BencodexValue::Null, null);
+    /// # Ok(())
+    /// # }
     /// ```
     /// [Bencodex]: https://bencodex.org/
     fn decode(self) -> Result<BencodexValue<'static>, DecodeError>;
@@ -69,12 +94,23 @@ pub trait Decode {
     /// - AArch64: NEON (always available)
     /// - Other platforms: Falls back to scalar implementation
     ///
+    /// Trailing bytes after the first value are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecodeError`] if the first value cannot be decoded. See
+    /// [`crate::simd::decode_simd`] for the validation and borrowing contract.
+    ///
     /// # Examples
-    /// ```ignore
+    /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     ///
     /// let vec = b"i42e".to_vec();
-    /// let number = vec.decode_simd().unwrap();
+    /// let number = vec.decode_simd()?;
+    /// assert_eq!(number, BencodexValue::from(42));
+    /// # Ok(())
+    /// # }
     /// ```
     /// [Bencodex]: https://bencodex.org/
     #[cfg(feature = "simd")]
@@ -178,10 +214,9 @@ fn decode_dict_impl<'a, const BORROW: bool>(
         index = start + tsize;
         let (value, size) = decode_impl::<BORROW>(vector, index)?;
 
-        match map.insert(key, value) {
-            None => (),
-            Some(_) => todo!(),
-        };
+        if map.insert(key, value).is_some() {
+            return Err(DecodeError::InvalidBencodexValueError);
+        }
         tsize += size;
         index = start + tsize;
     }
@@ -242,13 +277,14 @@ fn decode_byte_string_impl<'a, const BORROW: bool>(
         .should_not_be_none()?
         .expect(b':', index)?;
     tsize += 1;
-    if vector.len() < start + tsize + length {
-        return Err(DecodeError::InvalidBencodexValueError);
-    }
+    let end = (start + tsize)
+        .checked_add(length)
+        .ok_or(DecodeError::InvalidBencodexValueError)?;
+    let data = vector
+        .get(start + tsize..end)
+        .ok_or(DecodeError::InvalidBencodexValueError)?;
     Ok((
-        BencodexValue::Binary(cow_binary::<BORROW>(
-            &vector[start + tsize..start + tsize + length],
-        )),
+        BencodexValue::Binary(cow_binary::<BORROW>(data)),
         tsize + length,
     ))
 }
@@ -285,10 +321,13 @@ fn decode_unicode_string_impl<'a, const BORROW: bool>(
         .expect(b':', index)?;
     tsize += 1;
 
-    if vector.len() < start + tsize + length {
-        return Err(DecodeError::InvalidBencodexValueError);
-    }
-    let text = match str::from_utf8(&vector[start + tsize..start + tsize + length]) {
+    let end = (start + tsize)
+        .checked_add(length)
+        .ok_or(DecodeError::InvalidBencodexValueError)?;
+    let data = vector
+        .get(start + tsize..end)
+        .ok_or(DecodeError::InvalidBencodexValueError)?;
+    let text = match str::from_utf8(data) {
         Ok(v) => v,
         Err(_) => return Err(DecodeError::InvalidBencodexValueError),
     };
@@ -392,18 +431,32 @@ fn read_number(s: &[u8]) -> Option<(BigInt, usize)> {
     }
 }
 
-/// Decode a Bencodex value with zero-copy borrowing from the input slice.
+/// Decodes the first Bencodex value, borrowing strings from the input slice.
 ///
 /// The returned value borrows binary and text data directly from `input`,
 /// avoiding allocations for those types.
+/// Lists, dictionaries, and arbitrary-precision integers still allocate.
+/// Use [`BencodexValue::into_owned`] to detach the value from the input.
+///
+/// Bytes after the first value are ignored. This decoder accepts noncanonical
+/// forms such as leading zeroes and unordered dictionary keys; it is not a
+/// canonical-encoding validator.
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] for truncated values, invalid string lengths or
+/// UTF-8, invalid dictionary keys, duplicate keys, or unexpected tokens.
 ///
 /// # Examples
 /// ```
+/// # fn main() -> Result<(), bencodex::DecodeError> {
 /// use bencodex::{BencodexValue, decode_borrowed};
 ///
 /// let data = b"u5:hello";
-/// let value = decode_borrowed(data).unwrap();
+/// let value = decode_borrowed(data)?;
 /// assert_eq!(value, BencodexValue::Text("hello".into()));
+/// # Ok(())
+/// # }
 /// ```
 pub fn decode_borrowed(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
     Ok(decode_impl::<true>(input, 0)?.0)
@@ -411,13 +464,16 @@ pub fn decode_borrowed(input: &[u8]) -> Result<BencodexValue<'_>, DecodeError> {
 
 impl Decode for Vec<u8> {
     /// ```
+    /// # fn main() -> Result<(), bencodex::DecodeError> {
     /// use bencodex::{ Decode, BencodexValue };
     /// use std::collections::BTreeMap;
     ///
     /// let buf = b"de".to_vec();
-    /// let dictionary = buf.decode().ok().unwrap();
+    /// let dictionary = buf.decode()?;
     ///
     /// assert_eq!(dictionary, BencodexValue::Dictionary(BTreeMap::new()));
+    /// # Ok(())
+    /// # }
     /// ```
     fn decode(self) -> Result<BencodexValue<'static>, DecodeError> {
         let value = decode_impl::<false>(&self, 0)?.0;
@@ -749,7 +805,7 @@ mod tests {
             #[test]
             fn fmt() {
                 assert_eq!(
-                    "InvalidBencodexValueError",
+                    "invalid bencodex value",
                     DecodeError::InvalidBencodexValueError.to_string()
                 )
             }

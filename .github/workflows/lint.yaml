@@ -42,3 +42,15 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --no-default-features --features alloc -- -D warnings
+
+  api-docs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo doc --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo doc --no-default-features --features alloc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings

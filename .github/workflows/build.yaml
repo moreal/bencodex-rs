@@ -25,3 +25,11 @@ jobs:
       - run: rustup target add thumbv7em-none-eabihf
       - run: cargo build --no-default-features --features alloc
       - run: cargo build --no-default-features --features alloc --target thumbv7em-none-eabihf
+
+  check-msrv:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.88
+      - run: cargo check --all-features --locked
+      - run: cargo check --no-default-features --locked

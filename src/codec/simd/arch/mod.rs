@@ -22,26 +22,36 @@ pub trait SimdBackend {
     /// Load unaligned bytes from memory into a vector
     ///
     /// # Safety
-    /// - `ptr` must point to at least `LANE_WIDTH` readable bytes
+    ///
+    /// `ptr` must point to at least [`Self::LANE_WIDTH`] initialized, readable
+    /// bytes in one allocation. No alignment beyond byte alignment is required.
+    /// The CPU must support the backend's instruction set: SSE4.2 for `Sse42`,
+    /// AVX2 for `Avx2`, or NEON for `Neon`.
     unsafe fn load_unaligned(ptr: *const u8) -> Self::Vector;
 
     /// Compare each byte in vector `a` against byte `b`
     /// Returns a mask where matching positions are 0xFF, others are 0x00
     ///
     /// # Safety
-    /// - Requires the appropriate SIMD feature to be available
+    ///
+    /// The CPU must support this backend's instruction set, as described by
+    /// [`Self::load_unaligned`].
     unsafe fn cmpeq_epi8(a: Self::Vector, b: u8) -> Self::Vector;
 
     /// Bitwise OR of two vectors
     ///
     /// # Safety
-    /// - Requires the appropriate SIMD feature to be available
+    ///
+    /// The CPU must support this backend's instruction set, as described by
+    /// [`Self::load_unaligned`].
     unsafe fn or(a: Self::Vector, b: Self::Vector) -> Self::Vector;
 
     /// Extract most significant bit of each byte into a bitmask
     /// Bit N is set if byte N has its MSB set (0x80 or higher)
     ///
     /// # Safety
-    /// - Requires the appropriate SIMD feature to be available
+    ///
+    /// The CPU must support this backend's instruction set, as described by
+    /// [`Self::load_unaligned`].
     unsafe fn movemask_epi8(a: Self::Vector) -> u32;
 }

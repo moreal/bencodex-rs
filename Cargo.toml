@@ -3,12 +3,18 @@ name = "bencodex-rs"
 version = "0.6.0"
 authors = ["moreal <dev.moreal@gmail.com>"]
 edition = "2024"
+rust-version = "1.88"
 description = "The Rust implementation of Bencodex"
 license = "MIT"
 keywords = ["bencodex", "encoding", "decoding"]
-homepage = "https://github.com/bencodex/bencodex-rs"
+categories = ["encoding", "no-std"]
 repository = "https://github.com/bencodex/bencodex-rs"
-documentation = "https://docs.rs/crate/bencodex-rs"
+
+[package.metadata.docs.rs]
+features = ["json", "simd"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [lib]
 name = "bencodex"

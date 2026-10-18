@@ -8,6 +8,7 @@ use core::arch::x86_64::*;
 use super::SimdBackend;
 
 /// SSE4.2 backend (128-bit vectors)
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Sse42;
 
 impl SimdBackend for Sse42 {
@@ -43,6 +44,7 @@ impl SimdBackend for Sse42 {
 }
 
 /// AVX2 backend (256-bit vectors)
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Avx2;
 
 impl SimdBackend for Avx2 {
@@ -80,7 +82,9 @@ impl SimdBackend for Avx2 {
 /// Scan for structural characters using SSE4.2
 ///
 /// # Safety
-/// - Requires SSE4.2 support (caller must verify with `is_x86_feature_detected!("sse4.2")`)
+///
+/// The CPU must support SSE4.2. Check `is_x86_feature_detected!("sse4.2")`
+/// before calling unless support is guaranteed by the compilation target.
 #[target_feature(enable = "sse4.2")]
 pub unsafe fn scan_structural_sse42(input: &[u8], indices: &mut Vec<u32>) {
     unsafe { scan_structural_generic::<Sse42>(input, indices) }
@@ -89,7 +93,9 @@ pub unsafe fn scan_structural_sse42(input: &[u8], indices: &mut Vec<u32>) {
 /// Scan for structural characters using AVX2
 ///
 /// # Safety
-/// - Requires AVX2 support (caller must verify with `is_x86_feature_detected!("avx2")`)
+///
+/// The CPU must support AVX2. Check `is_x86_feature_detected!("avx2")`
+/// before calling unless support is guaranteed by the compilation target.
 #[target_feature(enable = "avx2")]
 pub unsafe fn scan_structural_avx2(input: &[u8], indices: &mut Vec<u32>) {
     unsafe { scan_structural_generic::<Avx2>(input, indices) }
