@@ -66,7 +66,6 @@ cargo clippy
 # Changelog
 
 User-visible changes are documented with [Sacho](https://sacho.dev/).
-See the [Korean workflow guide](docs/changelog.ko.md) for a detailed explanation.
 
 Install [mise](https://mise.jdx.dev/), then run `mise trust` and `mise install`
 to activate the Sacho version pinned in `mise.toml`. Alternatively, install

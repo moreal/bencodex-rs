@@ -33,10 +33,7 @@ They accept some noncanonical encodings (including leading zeroes and unordered
 dictionary keys), so decoding is not a canonical-format validation step.
 Invalid lengths and duplicate dictionary keys return errors.
 
-See the [API assessment](docs/api-guidelines.md) for the Rust API Guidelines
-review and [release notes](CHANGES.md) for changes and migration guidance.
-
-한국어 설명: [API 가이드라인 평가](docs/api-guidelines.ko.md) · [변경 기록 작성 안내](docs/changelog.ko.md)
+See the [release notes](CHANGES.md) for changes and migration guidance.
 
 ## Feature Flags
 
