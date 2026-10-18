@@ -4,13 +4,23 @@ use crate::prelude::*;
 use core::result::Result;
 use num_bigint::BigInt;
 
-/// `Encode` is a trait to encode a [Bencodex] value.
+/// Encodes a [Bencodex] value into a writer.
+///
+/// Implementations support both owned and borrowed binary, text, and list
+/// values. This trait is not dyn compatible because [`encode`](Self::encode)
+/// has a generic writer parameter. Use [`BencodexValue`] to represent values
+/// of different Bencodex types together.
 ///
 /// [Bencodex]: https://bencodex.org/
 pub trait Encode {
-    /// Encode a [Bencodex] value from this type.
+    /// Writes this value in [Bencodex] format to `writer`.
     ///
-    /// If encoding succeeds, return [`Ok`]. Otherwise, it will pass an I/O error occurred in inner logic.
+    /// The writer is not flushed after encoding.
+    ///
+    /// # Errors
+    ///
+    /// Returns the writer's I/O error if any bytes cannot be written. The
+    /// writer may contain a partial encoding when this method returns an error.
     ///
     /// # Examples
     /// Basic usage with [`BencodexValue::Text`]:
@@ -19,12 +29,38 @@ pub trait Encode {
     ///
     /// let text = "text".to_string();
     /// let mut vec = Vec::new();
-    /// text.encode(&mut vec);
+    /// text.encode(&mut vec)?;
     ///
     /// assert_eq!(vec, vec![b'u', b'4', b':', b't', b'e', b'x', b't']);
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     /// [Bencodex]: https://bencodex.org/
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError>;
+}
+
+/// Encodes a value into a writer passed by value.
+///
+/// Pass `&mut writer` to keep using the writer afterward. Borrowed values such
+/// as [`str`] and byte slices can be encoded directly without allocating an
+/// owned input. The writer is not flushed after encoding.
+///
+/// # Errors
+///
+/// Returns the writer's I/O error if any bytes cannot be written. The writer
+/// may contain a partial encoding when this function returns an error.
+///
+/// # Examples
+///
+/// ```
+/// use bencodex::codec::encode::to_writer;
+///
+/// let mut bytes = Vec::new();
+/// to_writer(&mut bytes, "hello")?;
+/// assert_eq!(bytes, b"u5:hello");
+/// # Ok::<(), bencodex::io::Error>(())
+/// ```
+pub fn to_writer<W: Write, T: Encode + ?Sized>(mut writer: W, value: &T) -> Result<(), IoError> {
+    value.encode(&mut writer)
 }
 
 fn write_usize<W: Write>(writer: &mut W, n: usize) -> Result<(), IoError> {
@@ -45,15 +81,18 @@ impl Encode for Vec<u8> {
     ///
     /// let buf_val = b"hello".to_vec();
     /// let mut buf = vec![];
-    /// buf_val.encode(&mut buf);
+    /// buf_val.encode(&mut buf)?;
     /// assert_eq!(buf, b"5:hello");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
-        write_usize(writer, self.len())?;
-        writer.write_all(b":")?;
-        writer.write_all(self)?;
+        self.as_slice().encode(writer)
+    }
+}
 
-        Ok(())
+impl Encode for [u8] {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        encode_binary(writer, self)
     }
 }
 
@@ -62,8 +101,9 @@ impl Encode for i64 {
     /// use bencodex::{ Encode };
     ///
     /// let mut buf = vec![];
-    /// 1004i64.encode(&mut buf);
+    /// 1004i64.encode(&mut buf)?;
     /// assert_eq!(buf, b"i1004e");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"i")?;
@@ -77,17 +117,18 @@ impl Encode for String {
     /// use bencodex::{ Encode };
     ///
     /// let mut buf = vec![];
-    /// "foo".to_string().encode(&mut buf);
+    /// "foo".to_string().encode(&mut buf)?;
     /// assert_eq!(buf, b"u3:foo");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
-        let bytes = self.as_bytes();
-        writer.write_all(b"u")?;
-        write_usize(writer, bytes.len())?;
-        writer.write_all(b":")?;
-        writer.write_all(bytes)?;
+        self.as_str().encode(writer)
+    }
+}
 
-        Ok(())
+impl Encode for str {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        encode_text(writer, self)
     }
 }
 
@@ -96,8 +137,9 @@ impl Encode for bool {
     /// use bencodex::{ Encode };
     ///
     /// let mut buf = vec![];
-    /// true.encode(&mut buf);
+    /// true.encode(&mut buf)?;
     /// assert_eq!(buf, b"t");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(if *self { b"t" } else { b"f" })?;
@@ -112,8 +154,9 @@ impl Encode for BigInt {
     /// use num_bigint::BigInt;
     ///
     /// let mut buf = vec![];
-    /// BigInt::from(0).encode(&mut buf);
+    /// BigInt::from(0).encode(&mut buf)?;
     /// assert_eq!(buf, b"i0e");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"i")?;
@@ -131,9 +174,16 @@ impl Encode for Vec<BencodexValue<'_>> {
     ///
     /// let list: Vec<BencodexValue> = vec![0.into(), BencodexValue::Null];
     /// let mut buf = vec![];
-    /// list.encode(&mut buf);
+    /// list.encode(&mut buf)?;
     /// assert_eq!(buf, b"li0ene");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        self.as_slice().encode(writer)
+    }
+}
+
+impl Encode for [BencodexValue<'_>] {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"l")?;
         for el in self {
@@ -170,8 +220,8 @@ fn encode_text<W: Write>(writer: &mut W, text: &str) -> Result<(), IoError> {
 impl Encode for BencodexValue<'_> {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         match self {
-            BencodexValue::Binary(x) => encode_binary(writer, x)?,
-            BencodexValue::Text(x) => encode_text(writer, x)?,
+            BencodexValue::Binary(x) => x.as_ref().encode(writer)?,
+            BencodexValue::Text(x) => x.as_ref().encode(writer)?,
             BencodexValue::Dictionary(x) => x.encode(writer)?,
             BencodexValue::List(x) => x.encode(writer)?,
             BencodexValue::Boolean(x) => x.encode(writer)?,
@@ -180,6 +230,15 @@ impl Encode for BencodexValue<'_> {
         }
 
         Ok(())
+    }
+}
+
+impl Encode for BencodexKey<'_> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
+        match self {
+            BencodexKey::Binary(bytes) => bytes.as_ref().encode(writer),
+            BencodexKey::Text(text) => text.as_ref().encode(writer),
+        }
     }
 }
 
@@ -192,17 +251,15 @@ impl Encode for BTreeMap<BencodexKey<'_>, BencodexValue<'_>> {
     /// dict.insert("".into(), "".into());
     ///
     /// let mut buf = vec![];
-    /// dict.encode(&mut buf);
+    /// dict.encode(&mut buf)?;
     ///
-    /// assert_eq!(buf, b"du0:u0:e")
+    /// assert_eq!(buf, b"du0:u0:e");
+    /// # Ok::<(), bencodex::io::Error>(())
     /// ```
     fn encode<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
         writer.write_all(b"d")?;
         for (key, value) in self {
-            match key {
-                BencodexKey::Binary(x) => encode_binary(writer, x)?,
-                BencodexKey::Text(x) => encode_text(writer, x)?,
-            }
+            key.encode(writer)?;
             value.encode(writer)?;
         }
         writer.write_all(b"e")?;

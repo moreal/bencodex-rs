@@ -10,8 +10,9 @@ use num_bigint::BigInt;
 /// dict.insert("foo".into(), "bar".into());
 ///
 /// let mut buf = vec![];
-/// dict.encode(&mut buf);
-/// assert_eq!(buf, b"du3:foou3:bare")
+/// dict.encode(&mut buf)?;
+/// assert_eq!(buf, b"du3:foou3:bare");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub type BencodexDictionary<'a> = BTreeMap<BencodexKey<'a>, BencodexValue<'a>>;
 /// The type alias of `Vec<BencodexValue>` to reduce code size.
@@ -24,8 +25,9 @@ pub type BencodexDictionary<'a> = BTreeMap<BencodexKey<'a>, BencodexValue<'a>>;
 /// list.push("bar".to_string().into());
 ///
 /// let mut buf = vec![];
-/// list.encode(&mut buf);
-/// assert_eq!(buf, b"lu3:foou3:bare")
+/// list.encode(&mut buf)?;
+/// assert_eq!(buf, b"lu3:foou3:bare");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub type BencodexList<'a> = Vec<BencodexValue<'a>>;
 
@@ -35,30 +37,92 @@ pub type BencodexList<'a> = Vec<BencodexValue<'a>>;
 /// use bencodex::{ Encode, BENCODEX_NULL };
 ///
 /// let mut buf = vec![];
-/// BENCODEX_NULL.encode(&mut buf);
-/// assert_eq!(buf, b"n")
+/// BENCODEX_NULL.encode(&mut buf)?;
+/// assert_eq!(buf, b"n");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub const BENCODEX_NULL: BencodexValue<'static> = BencodexValue::Null;
 
-#[derive(PartialEq, Debug, Clone)]
+/// A Bencodex value, with optionally borrowed binary and text data.
+///
+/// Converting a `&str` or `&[u8]` borrows its contents, while converting a
+/// [`String`] or [`Vec<u8>`] takes ownership without copying its buffer.
+/// [`Self::into_owned`] removes all borrows, including those in nested values.
+/// Equality and hashing compare contents and variants, regardless of ownership.
+///
+/// Integer conversions are lossless. To convert a `u8` to a number, use
+/// `BencodexValue::Number(byte.into())` or widen it to `u16` first. There is no
+/// `From<u8>` implementation because it would conflict with the existing
+/// conversions of `Vec<u8>` to binary and `Vec<T>` to a list.
+///
+/// ```
+/// use bencodex::{BencodexValue, Encode};
+///
+/// let value = BencodexValue::from(vec![1_u128, 2, 3]);
+/// let mut bytes = Vec::new();
+/// value.encode(&mut bytes)?;
+/// assert_eq!(bytes, b"li1ei2ei3ee");
+///
+/// let binary = BencodexValue::from(vec![1_u8, 2, 3]);
+/// assert!(matches!(binary, BencodexValue::Binary(_)));
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub enum BencodexValue<'a> {
+    /// An arbitrary sequence of bytes.
     Binary(Cow<'a, [u8]>),
+    /// A UTF-8 text string.
     Text(Cow<'a, str>),
+    /// A Boolean value.
     Boolean(bool),
+    /// An arbitrary-precision signed integer.
     Number(BigInt),
+    /// An ordered sequence of values.
     List(BencodexList<'a>),
+    /// A dictionary with binary or text keys.
     Dictionary(BencodexDictionary<'a>),
+    /// The null value.
     Null,
 }
 
-#[derive(PartialEq, Eq, Debug, PartialOrd, Clone, Ord)]
+/// A binary or text key in a [`BencodexDictionary`].
+///
+/// Binary keys sort before text keys, and keys of the same kind sort
+/// lexicographically by their contents. Binary and text keys remain distinct
+/// even when their bytes match. Equality, ordering, and hashing are independent
+/// of whether the data is borrowed or owned.
+///
+/// ```
+/// use bencodex::{BencodexKey, BencodexValue};
+///
+/// let key = BencodexKey::from("name");
+/// let value = BencodexValue::from(key);
+/// assert_eq!(value, BencodexValue::from("name"));
+/// ```
+#[derive(PartialEq, Eq, Hash, Debug, PartialOrd, Clone, Ord)]
 pub enum BencodexKey<'a> {
+    /// An arbitrary sequence of bytes.
     Binary(Cow<'a, [u8]>),
+    /// A UTF-8 text string.
     Text(Cow<'a, str>),
 }
 
 impl<'a> BencodexValue<'a> {
-    /// Convert a borrowed `BencodexValue` into a fully owned one with `'static` lifetime.
+    /// Converts this value into a fully owned value with a `'static` lifetime.
+    ///
+    /// Copies borrowed binary and text data recursively, including dictionary
+    /// keys. Buffers that are already owned are moved without copying.
+    ///
+    /// ```
+    /// use bencodex::BencodexValue;
+    ///
+    /// let owned = {
+    ///     let text = String::from("temporary");
+    ///     BencodexValue::from(vec![text.as_str()]).into_owned()
+    /// };
+    /// assert_eq!(owned, BencodexValue::from(vec!["temporary"]));
+    /// ```
+    #[must_use]
     pub fn into_owned(self) -> BencodexValue<'static> {
         match self {
             BencodexValue::Binary(cow) => BencodexValue::Binary(Cow::Owned(cow.into_owned())),
@@ -79,11 +143,33 @@ impl<'a> BencodexValue<'a> {
 }
 
 impl<'a> BencodexKey<'a> {
-    /// Convert a borrowed `BencodexKey` into a fully owned one with `'static` lifetime.
+    /// Converts this key into a fully owned key with a `'static` lifetime.
+    ///
+    /// Copies borrowed data and moves already owned buffers without copying.
+    ///
+    /// ```
+    /// use bencodex::BencodexKey;
+    ///
+    /// let owned = {
+    ///     let text = String::from("temporary");
+    ///     BencodexKey::from(text.as_str()).into_owned()
+    /// };
+    /// assert_eq!(owned, BencodexKey::from("temporary"));
+    /// ```
+    #[must_use]
     pub fn into_owned(self) -> BencodexKey<'static> {
         match self {
             BencodexKey::Binary(cow) => BencodexKey::Binary(Cow::Owned(cow.into_owned())),
             BencodexKey::Text(cow) => BencodexKey::Text(Cow::Owned(cow.into_owned())),
+        }
+    }
+}
+
+impl<'a> From<BencodexKey<'a>> for BencodexValue<'a> {
+    fn from(val: BencodexKey<'a>) -> Self {
+        match val {
+            BencodexKey::Binary(bytes) => BencodexValue::Binary(bytes),
+            BencodexKey::Text(text) => BencodexValue::Text(text),
         }
     }
 }
@@ -149,10 +235,15 @@ macro_rules! bencodex_value_number_impl {
 bencodex_value_number_impl!(u16);
 bencodex_value_number_impl!(u32);
 bencodex_value_number_impl!(u64);
+bencodex_value_number_impl!(u128);
+bencodex_value_number_impl!(usize);
 bencodex_value_number_impl!(i8);
 bencodex_value_number_impl!(i16);
 bencodex_value_number_impl!(i32);
 bencodex_value_number_impl!(i64);
+bencodex_value_number_impl!(i128);
+bencodex_value_number_impl!(isize);
+bencodex_value_number_impl!(BigInt);
 
 impl From<bool> for BencodexValue<'_> {
     fn from(val: bool) -> Self {

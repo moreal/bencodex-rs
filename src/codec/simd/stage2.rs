@@ -16,6 +16,7 @@ use super::structural::StructuralIndex;
 ///
 /// Uses a pre-built structural index to parse values more efficiently
 /// by jumping directly to structural character positions.
+#[derive(Debug)]
 pub struct SimdParser<'a, 's> {
     input: &'a [u8],
     structural: &'s StructuralIndex,
@@ -35,7 +36,14 @@ impl<'a, 's> SimdParser<'a, 's> {
         }
     }
 
-    /// Parse a complete Bencodex value from the input.
+    /// Parse the next Bencodex value, leaving trailing bytes unconsumed.
+    ///
+    /// Binary and text payloads borrow from the original input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a missing or malformed value, invalid UTF-8 text,
+    /// duplicate dictionary keys, or a string length beyond the available input.
     pub fn parse(&mut self) -> Result<BencodexValue<'a>, DecodeError> {
         self.parse_value()
     }
@@ -90,7 +98,9 @@ impl<'a, 's> SimdParser<'a, 's> {
             // Parse value
             let value = self.parse_value()?;
 
-            map.insert(key, value);
+            if map.insert(key, value).is_some() {
+                return Err(DecodeError::InvalidBencodexValueError);
+            }
         }
 
         self.expect(b'e')?;
@@ -135,12 +145,15 @@ impl<'a, 's> SimdParser<'a, 's> {
         self.pos = colon_pos + 1;
 
         // Read data
-        if self.pos + length > self.input.len() {
-            return Err(DecodeError::InvalidBencodexValueError);
-        }
-
-        let data = &self.input[self.pos..self.pos + length];
-        self.pos += length;
+        let end = self
+            .pos
+            .checked_add(length)
+            .ok_or(DecodeError::InvalidBencodexValueError)?;
+        let data = self
+            .input
+            .get(self.pos..end)
+            .ok_or(DecodeError::InvalidBencodexValueError)?;
+        self.pos = end;
 
         Ok(BencodexValue::Binary(Cow::Borrowed(data)))
     }
@@ -170,13 +183,16 @@ impl<'a, 's> SimdParser<'a, 's> {
         self.pos = colon_pos + 1;
 
         // Read data
-        if self.pos + length > self.input.len() {
-            return Err(DecodeError::InvalidBencodexValueError);
-        }
-
-        let text = str::from_utf8(&self.input[self.pos..self.pos + length])
-            .map_err(|_| DecodeError::InvalidBencodexValueError)?;
-        self.pos += length;
+        let end = self
+            .pos
+            .checked_add(length)
+            .ok_or(DecodeError::InvalidBencodexValueError)?;
+        let data = self
+            .input
+            .get(self.pos..end)
+            .ok_or(DecodeError::InvalidBencodexValueError)?;
+        let text = str::from_utf8(data).map_err(|_| DecodeError::InvalidBencodexValueError)?;
+        self.pos = end;
 
         Ok(BencodexValue::Text(Cow::Borrowed(text)))
     }
@@ -239,16 +255,6 @@ impl<'a, 's> SimdParser<'a, 's> {
             }
         }
         None
-    }
-
-    /// Reset struct_idx cursor to search from a specific position.
-    /// Uses binary search to find first index >= from_pos.
-    #[allow(dead_code)]
-    fn reset_structural_cursor(&mut self, from_pos: usize) {
-        self.struct_idx = self
-            .structural
-            .indices
-            .partition_point(|&p| (p as usize) < from_pos);
     }
 }
 

@@ -1,0 +1,19 @@
+[changelog]
+path = "CHANGES.md"
+title = "bencodex-rs changes"
+unreleased-heading = "To be released."
+materialize = true
+region-detection = "heading"
+
+[fragments]
+directory = "changes.d"
+next-file = "next"
+
+[links]
+"#" = "https://github.com/bencodex/bencodex-rs/issues/{n}"
+
+[vcs]
+preset = "git"
+
+[check]
+paths = ["src/**", "Cargo.toml"]

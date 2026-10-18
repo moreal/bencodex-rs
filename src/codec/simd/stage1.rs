@@ -11,7 +11,7 @@ use super::structural::StructuralIndex;
 /// This function automatically selects the best SIMD implementation based on
 /// runtime CPU feature detection:
 /// - AVX2 on x86_64 if available
-/// - SSE4.2 on x86_64 as fallback
+/// - SSE4.2 on x86_64 as fallback, or scalar code if unavailable
 /// - NEON on AArch64 (always available)
 /// - Scalar fallback on other platforms
 pub fn build_structural_index(input: &[u8]) -> StructuralIndex {
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_build_structural_index_empty() {
         let index = build_structural_index(b"");
-        assert!(index.is_empty());
+        assert_eq!(index.len(), 0);
     }
 
     #[test]

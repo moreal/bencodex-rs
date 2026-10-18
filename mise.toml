@@ -1,0 +1,14 @@
+[tools]
+"github:dahlia/sacho" = "0.3.2"
+
+[tasks."changelog:fmt"]
+description = "Format changelog fragments and refresh CHANGES.md"
+run = "sacho fmt"
+
+[tasks."changelog:preview"]
+description = "Preview unreleased changelog entries"
+run = "sacho preview"
+
+[tasks."changelog:check"]
+description = "Validate changelog fragments and generated output"
+run = "sacho check"

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 use std::result::Result;
 
 use base64::Engine;
@@ -6,16 +7,28 @@ use serde_json::Value;
 
 use crate::{BencodexDictionary, BencodexKey, BencodexValue};
 
-/// The error type which is returned from decoding json to bencodex.
-#[derive(Debug, PartialEq)]
+/// An error encountered when decoding the JSON representation of Bencodex.
+///
+/// Distinguishes invalid JSON syntax from a JSON value that does not represent
+/// Bencodex. These categories do not retain an underlying error or location.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum JsonDecodeError {
-    /// This should be used when it failed to decode because the given json string is invalid. It is used by [`from_json_string`].
-    /// For example, it will be returned when `nulll` string is given.
+    /// The input to [`from_json_string`] could not be parsed as JSON.
     InvalidJsonString,
-    /// This should be used when it failed to decode because the given json is invalid. It is used by [`from_json`] and [`from_json_string`].
-    /// For example, it will be returned when `serde_json::Value::String("0xZZ")` is given.
+    /// A parsed JSON value does not represent Bencodex, for example `"0xZZ"`.
     InvalidJson,
 }
+
+impl fmt::Display for JsonDecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::InvalidJsonString => "invalid json string",
+            Self::InvalidJson => "invalid bencodex json value",
+        })
+    }
+}
+
+impl std::error::Error for JsonDecodeError {}
 
 fn from_json_key_impl(s: &str) -> Result<BencodexKey<'static>, JsonDecodeError> {
     if let Some(rest) = s.strip_prefix("b64:") {
@@ -33,32 +46,33 @@ fn from_json_key_impl(s: &str) -> Result<BencodexKey<'static>, JsonDecodeError> 
     }
 }
 
-/// Decode JSON value to Bencodex value.
+/// Decodes a JSON value into an owned Bencodex value.
+///
+/// See the [module documentation](crate::json) for the JSON representation.
+///
+/// # Errors
+///
+/// Returns [`JsonDecodeError::InvalidJson`] if any value or dictionary key
+/// does not represent Bencodex. This includes JSON numbers, invalid binary
+/// encodings, and strings without a recognized text, binary, or integer form.
 ///
 /// # Examples
 ///
-/// In success case:
-///
 /// ```
-/// use serde_json::from_str;
 /// use bencodex::BencodexValue;
 /// use bencodex::json::from_json;
 ///
-/// let json = from_str("null").unwrap();
-/// let result = from_json(&json);
-/// assert!(result.is_ok());
-/// assert_eq!(result.unwrap(), BencodexValue::Null);
+/// let json = serde_json::from_str("null")?;
+/// assert_eq!(from_json(&json)?, BencodexValue::Null);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-///
-/// In error case:
 ///
 /// ```
 /// use serde_json::Value;
 /// use bencodex::json::{ from_json, JsonDecodeError };
 ///
 /// let result = from_json(&Value::String("0xZZ".to_string()));
-/// assert!(result.is_err());
-/// assert_eq!(result.unwrap_err(), JsonDecodeError::InvalidJson);
+/// assert_eq!(result, Err(JsonDecodeError::InvalidJson));
 /// ```
 pub fn from_json(value: &Value) -> Result<BencodexValue<'static>, JsonDecodeError> {
     match value {
@@ -97,39 +111,42 @@ pub fn from_json(value: &Value) -> Result<BencodexValue<'static>, JsonDecodeErro
     }
 }
 
-/// Decode JSON string to Bencodex value.
+/// Parses a JSON string and decodes it into an owned Bencodex value.
+///
+/// See the [module documentation](crate::json) for the JSON representation.
+///
+/// # Errors
+///
+/// Returns [`JsonDecodeError::InvalidJsonString`] if the input cannot be parsed
+/// as JSON. Returns [`JsonDecodeError::InvalidJson`] if a parsed value or key
+/// does not represent Bencodex, as described by [`from_json`].
 ///
 /// # Examples
-///
-/// In success case:
 ///
 /// ```
 /// use bencodex::BencodexValue;
 /// use bencodex::json::from_json_string;
 ///
-/// let result = from_json_string("null");
-/// assert!(result.is_ok());
-/// assert_eq!(result.unwrap(), BencodexValue::Null);
+/// assert_eq!(from_json_string("null")?, BencodexValue::Null);
+/// # Ok::<(), bencodex::json::JsonDecodeError>(())
 /// ```
 ///
-/// In error case which return [`JsonDecodeError::InvalidJsonString`]:
+/// Invalid JSON syntax:
 ///
 /// ```
 /// use bencodex::json::{ from_json_string, JsonDecodeError };
 ///
 /// let result = from_json_string("nulll");
-/// assert!(result.is_err());
-/// assert_eq!(result.unwrap_err(), JsonDecodeError::InvalidJsonString);
+/// assert_eq!(result, Err(JsonDecodeError::InvalidJsonString));
 /// ```
 ///
-/// In error case which return [`JsonDecodeError::InvalidJson`]:
+/// Valid JSON that does not represent Bencodex:
 ///
 /// ```
 /// use bencodex::json::{ from_json_string, JsonDecodeError };
 ///
 /// let result = from_json_string("\"0xZZ\"");
-/// assert!(result.is_err());
-/// assert_eq!(result.unwrap_err(), JsonDecodeError::InvalidJson);
+/// assert_eq!(result, Err(JsonDecodeError::InvalidJson));
 /// ```
 pub fn from_json_string(s: &str) -> Result<BencodexValue<'static>, JsonDecodeError> {
     let json = serde_json::from_str(s).map_err(|_| JsonDecodeError::InvalidJsonString)?;

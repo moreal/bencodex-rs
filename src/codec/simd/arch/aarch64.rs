@@ -6,6 +6,7 @@ use core::arch::aarch64::*;
 use super::SimdBackend;
 
 /// NEON backend (128-bit vectors)
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Neon;
 
 #[cfg(target_arch = "aarch64")]
@@ -73,7 +74,9 @@ unsafe fn neon_movemask(v: uint8x16_t) -> u32 {
 /// Scan for structural characters using NEON
 ///
 /// # Safety
-/// - Only call on AArch64 platforms (NEON is always available on AArch64)
+///
+/// The CPU must support NEON. This is guaranteed on the supported AArch64
+/// targets; callers on custom targets must ensure that NEON is enabled.
 #[cfg(target_arch = "aarch64")]
 pub unsafe fn scan_structural_neon(input: &[u8], indices: &mut Vec<u32>) {
     unsafe {
